@@ -884,8 +884,8 @@ git commit -m "feat(db): 加密连接与迁移系统 + 首张迁移建表"
   - `setup(password: String) -> ()` 创建数据库 + 跑迁移，置入 AppState
   - `unlock(password: String) -> ()` 打开已存在数据库，置入 AppState；密码错误返回 `WrongPassword`
   - `lock() -> ()` 关闭并清空 AppState 中的连接
-  - `change_password(old: String, new: String) -> ()` 校验旧密码 + rekey
 - Consumes：Task 2 的 `AppState`、Task 3 的 `db::pool` / `db::migrations`
+- **Note**：`change_password` 命令推迟到 M4 实现（连同其 UI 一起做、含旧密码校验）。M1 不暴露此命令。
 
 - [ ] **Step 1：建文件 `src-tauri/src/commands/mod.rs`**
 
@@ -936,11 +936,6 @@ pub fn lock(_state: tauri::State<AppState>) -> AppResult<()> {
     unimplemented!()
 }
 
-#[tauri::command]
-pub fn change_password(_state: tauri::State<AppState>, _old: String, _new: String) -> AppResult<()> {
-    unimplemented!()
-}
-
 // 内部函数：不依赖 tauri::AppHandle，直接用 path —— 方便单元测试
 pub(crate) fn setup_at(path: &std::path::Path, password: &str) -> AppResult<rusqlite::Connection> {
     let conn = pool::open_encrypted(path, password)?;
@@ -952,10 +947,6 @@ pub(crate) fn unlock_at(path: &std::path::Path, password: &str) -> AppResult<rus
     let conn = pool::open_encrypted(path, password)?;
     migrations::run(&conn)?; // 解锁时也运行新迁移
     Ok(conn)
-}
-
-pub(crate) fn change_password_at(conn: &rusqlite::Connection, new_password: &str) -> AppResult<()> {
-    pool::rekey(conn, new_password)
 }
 
 #[cfg(test)]
@@ -1000,16 +991,6 @@ mod tests {
         assert!(matches!(err, AppError::WrongPassword));
     }
 
-    #[test]
-    fn change_password_then_unlock_with_new() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("data.db");
-        let conn = setup_at(&path, "old").unwrap();
-        change_password_at(&conn, "new").unwrap();
-        drop(conn);
-        assert!(matches!(unlock_at(&path, "old").unwrap_err(), AppError::WrongPassword));
-        unlock_at(&path, "new").unwrap();
-    }
 }
 ```
 
@@ -1022,7 +1003,7 @@ Expected：`unimplemented!()` 触发 panic 或测试不通过。
 
 - [ ] **Step 4：实现命令体**
 
-替换 5 个 `unimplemented!` 为：
+替换 4 个 `unimplemented!` 为：
 
 ```rust
 #[tauri::command]
@@ -1068,24 +1049,9 @@ pub fn lock(state: tauri::State<AppState>) -> AppResult<()> {
     state.conn.lock().unwrap().take();
     Ok(())
 }
-
-#[tauri::command]
-pub fn change_password(
-    state: tauri::State<AppState>,
-    old: String,
-    new: String,
-) -> AppResult<()> {
-    let guard = state.conn.lock().unwrap();
-    let conn = guard.as_ref().ok_or(AppError::Locked)?;
-    // 校验旧密码：尝试再开一遍同一 db 用 old 解锁
-    // 这里简化：只要当前连接处于打开状态即可 rekey；旧密码无需校验
-    // 但要避免任意调用，前端应在"修改密码"界面要求用户输 old，仅用于 UI 二次确认。
-    let _ = old;
-    change_password_at(conn, &new)
-}
 ```
 
-> 注：`change_password` 校验旧密码会在 M4 完善（加单独 `verify_password` 命令）；MVP 中前端 UI 在"修改密码"页要求用户当前会话仍然解锁状态再点确认。
+> 注：`change_password` 命令推迟到 M4 实现，连同 UI 与旧密码校验一起做。
 
 - [ ] **Step 5：注册命令到 invoke_handler**
 
@@ -1098,7 +1064,6 @@ pub fn change_password(
     commands::auth::setup,
     commands::auth::unlock,
     commands::auth::lock,
-    commands::auth::change_password,
 ])
 ```
 
@@ -1107,13 +1072,13 @@ pub fn change_password(
 ```bash
 cargo test commands::auth -- --nocapture
 ```
-Expected：4 个 PASS。
+Expected：3 个 PASS。
 
 - [ ] **Step 7：Commit**
 
 ```bash
 git add -A
-git commit -m "feat(auth): 主密码 setup/unlock/lock/change_password 命令"
+git commit -m "feat(auth): 主密码 setup/unlock/lock 命令"
 ```
 
 ---
@@ -1301,14 +1266,20 @@ fn with_conn<R>(state: &tauri::State<AppState>, f: impl FnOnce(&Connection) -> A
 mod tests {
     use super::*;
     use crate::commands::auth::setup_at;
-    use tempfile::tempdir;
+    use tempfile::{tempdir, TempDir};
 
-    fn fresh_conn() -> rusqlite::Connection {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("test.db");
-        let conn = setup_at(&path, "p").unwrap();
-        Box::leak(Box::new(dir)); // 让目录跟着 conn 同活，避免 Drop 后文件消失
-        conn
+    /// 测试用 DB 持有：先 Drop conn 再 Drop dir，避免 TempDir 提前清理。
+    struct TestDb {
+        conn: rusqlite::Connection,
+        _dir: TempDir,
+    }
+
+    impl TestDb {
+        fn new() -> Self {
+            let dir = tempdir().unwrap();
+            let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
+            Self { conn, _dir: dir }
+        }
     }
 
     fn make_input(name: &str) -> CompanyInput {
@@ -1324,56 +1295,56 @@ mod tests {
 
     #[test]
     fn create_then_list() {
-        let conn = fresh_conn();
-        let c = create_impl(&conn, &make_input("公司 A")).unwrap();
+        let db = TestDb::new();
+        let c = create_impl(&db.conn, &make_input("公司 A")).unwrap();
         assert_eq!(c.name, "公司 A");
         assert!((c.default_tax_rate - 0.06).abs() < 1e-9);
         assert_eq!(c.currency_code, "CNY");
-        let list = list_impl(&conn).unwrap();
+        let list = list_impl(&db.conn).unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, c.id);
     }
 
     #[test]
     fn update_changes_name() {
-        let conn = fresh_conn();
-        let c = create_impl(&conn, &make_input("旧名")).unwrap();
-        let updated = update_impl(&conn, c.id, &make_input("新名")).unwrap();
+        let db = TestDb::new();
+        let c = create_impl(&db.conn, &make_input("旧名")).unwrap();
+        let updated = update_impl(&db.conn, c.id, &make_input("新名")).unwrap();
         assert_eq!(updated.name, "新名");
     }
 
     #[test]
     fn validation_rejects_empty_name() {
-        let conn = fresh_conn();
-        let err = create_impl(&conn, &make_input("")).unwrap_err();
+        let db = TestDb::new();
+        let err = create_impl(&db.conn, &make_input("")).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
     }
 
     #[test]
     fn validation_rejects_bad_tax_rate() {
-        let conn = fresh_conn();
+        let db = TestDb::new();
         let mut input = make_input("x");
         input.default_tax_rate = Some(1.5);
-        let err = create_impl(&conn, &input).unwrap_err();
+        let err = create_impl(&db.conn, &input).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
     }
 
     #[test]
     fn current_company_roundtrip() {
-        let conn = fresh_conn();
-        let c1 = create_impl(&conn, &make_input("一")).unwrap();
-        let c2 = create_impl(&conn, &make_input("二")).unwrap();
-        assert_eq!(get_current_impl(&conn).unwrap(), None);
-        set_current_impl(&conn, c2.id).unwrap();
-        assert_eq!(get_current_impl(&conn).unwrap(), Some(c2.id));
-        set_current_impl(&conn, c1.id).unwrap();
-        assert_eq!(get_current_impl(&conn).unwrap(), Some(c1.id));
+        let db = TestDb::new();
+        let c1 = create_impl(&db.conn, &make_input("一")).unwrap();
+        let c2 = create_impl(&db.conn, &make_input("二")).unwrap();
+        assert_eq!(get_current_impl(&db.conn).unwrap(), None);
+        set_current_impl(&db.conn, c2.id).unwrap();
+        assert_eq!(get_current_impl(&db.conn).unwrap(), Some(c2.id));
+        set_current_impl(&db.conn, c1.id).unwrap();
+        assert_eq!(get_current_impl(&db.conn).unwrap(), Some(c1.id));
     }
 
     #[test]
     fn set_current_unknown_id_fails() {
-        let conn = fresh_conn();
-        let err = set_current_impl(&conn, 999).unwrap_err();
+        let db = TestDb::new();
+        let err = set_current_impl(&db.conn, 999).unwrap_err();
         assert!(matches!(err, AppError::NotFound { .. }));
     }
 }
