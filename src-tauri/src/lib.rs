@@ -29,6 +29,12 @@ pub fn run() {
             commands::auth::setup,
             commands::auth::unlock,
             commands::auth::lock,
+            commands::companies::list_companies,
+            commands::companies::get_company,
+            commands::companies::create_company,
+            commands::companies::update_company,
+            commands::companies::get_current_company_id,
+            commands::companies::set_current_company,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
