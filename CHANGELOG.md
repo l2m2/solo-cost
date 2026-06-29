@@ -12,3 +12,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 应用状态容器，持有加密数据库连接
 - `ping` IPC 命令，前端可验证与 Rust 后端的通信通路
 - 前端首页展示 IPC 响应（`ipc: pong`），确认打通前后端
+- 主密码命令：`setup`（初始化加密数据库）、`unlock`（密码验证并解锁）、`lock`（锁定）、`is_initialized`（检查是否已初始化）
