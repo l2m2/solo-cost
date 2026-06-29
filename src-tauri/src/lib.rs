@@ -1,3 +1,4 @@
+mod commands;
 mod db;
 mod error;
 mod state;
@@ -22,7 +23,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![ping])
+        .invoke_handler(tauri::generate_handler![
+            ping,
+            commands::auth::is_initialized,
+            commands::auth::setup,
+            commands::auth::unlock,
+            commands::auth::lock,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
