@@ -1,0 +1,51 @@
+{
+  "app": {
+    "name": "solo-cost",
+    "tagline": "项目利润核算"
+  },
+  "setup": {
+    "title": "初始化主密码",
+    "warning": "主密码用于加密本地数据库，丢失无法找回。请务必记录在密码管理器中。",
+    "password": "设置主密码",
+    "confirm": "再次输入",
+    "passwordMin": "密码至少 8 位",
+    "passwordMismatch": "两次输入不一致",
+    "submit": "创建并进入"
+  },
+  "login": {
+    "title": "解锁",
+    "password": "主密码",
+    "submit": "解锁",
+    "wrongPassword": "主密码错误"
+  },
+  "nav": {
+    "dashboard": "仪表盘",
+    "projects": "项目",
+    "members": "成员",
+    "categories": "成本科目",
+    "tasks": "任务总览",
+    "reports": "报表",
+    "trash": "回收站",
+    "settings": "设置",
+    "companies": "公司管理"
+  },
+  "company": {
+    "switcher": "切换公司",
+    "create": "新建公司",
+    "edit": "编辑公司",
+    "name": "公司名",
+    "legalName": "工商注册全称",
+    "taxId": "统一社会信用代码",
+    "defaultTaxRate": "默认税率",
+    "currency": "结算货币",
+    "notes": "备注",
+    "save": "保存",
+    "empty": "还没有公司，先创建第一家",
+    "nameRequired": "公司名必填"
+  },
+  "common": {
+    "cancel": "取消",
+    "confirm": "确定",
+    "error": "操作失败：{{msg}}"
+  }
+}
