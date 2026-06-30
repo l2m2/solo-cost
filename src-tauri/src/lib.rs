@@ -1,3 +1,4 @@
+mod domain;
 mod commands;
 mod db;
 mod error;

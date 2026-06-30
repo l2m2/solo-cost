@@ -1,8 +1,13 @@
 use crate::error::{AppError, AppResult};
 use rusqlite::Connection;
 
-const MIGRATIONS: &[(&str, &str)] =
-    &[("0001_init", include_str!("../../migrations/0001_init.sql"))];
+const MIGRATIONS: &[(&str, &str)] = &[
+    ("0001_init", include_str!("../../migrations/0001_init.sql")),
+    (
+        "0002_projects_costs",
+        include_str!("../../migrations/0002_projects_costs.sql"),
+    ),
+];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
     ensure_meta_table(conn)?;
@@ -73,7 +78,7 @@ mod tests {
         assert_eq!(n, 1);
 
         let v = current_version(&conn).unwrap();
-        assert_eq!(v, 1);
+        assert_eq!(v, 2);
     }
 
     #[test]
@@ -81,6 +86,6 @@ mod tests {
         let conn = open_in_memory_for_test("p").unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap(); // second run should not error
-        assert_eq!(current_version(&conn).unwrap(), 1);
+        assert_eq!(current_version(&conn).unwrap(), 2);
     }
 }
