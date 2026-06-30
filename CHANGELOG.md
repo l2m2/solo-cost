@@ -27,3 +27,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 新建项目时自动为所属公司幂等种入 9 个预设科目，确保成本录入始终有科目可选
 - 成本录入管理后端：支持按项目创建、编辑、软删除、列表查询；创建时校验金额非负、日期必填，并拒绝跨公司科目引用
 - 项目维度科目汇总接口 `get_project_cost_summary`：按科目聚合金额，仅含有支出的科目，按金额降序排列
+- 回收站后端：按当前公司列出软删除的项目与成本录入，整组恢复或物理清理（`list_trash` / `restore_trash_item` / `purge_trash_item`）
+- 物理清理项目时先级联删除其下成本录入，避免外键残留
