@@ -6,6 +6,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import SetupPage from "@/routes/setup";
 import LoginPage from "@/routes/login";
 import DashboardPage from "@/routes/dashboard";
+import CompaniesPage from "@/routes/companies";
 import "@/i18n";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -36,7 +37,7 @@ export default function App() {
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="companies" element={<div>公司管理（Task 7 实现）</div>} />
+            <Route path="companies" element={<CompaniesPage />} />
             <Route path="settings" element={<div>设置（M4 实现）</div>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
