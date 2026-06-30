@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- 任务管理后端：支持创建、查询、编辑、按状态筛选（todo / in_progress / done）及软删除；删除任务时级联软删该任务的所有工时记录
 - 合同收款节点后端：支持创建、查询、编辑、软删除，新节点按添加顺序排列；`mark_payment_received` 专用命令一键记录实收金额与到账日期
 - 成员管理后端：支持创建、查询、编辑、归档切换（`set_member_active`）及软删除；成员存在有效工时记录时拒绝删除并返回 `DeleteBlocked`
 - 项目财务汇总：支持计算含税/不含税合同收入换算、税额拆分、人力成本（逐条舍入后累加，避免浮点漂移）、综合成本、毛利润及利润率、回款进度与回款率，分母为零时安全返回 0
