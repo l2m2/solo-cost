@@ -29,6 +29,9 @@ pub enum AppError {
     #[error("not found: {entity} #{id}")]
     NotFound { entity: &'static str, id: i64 },
 
+    #[error("cannot delete: {0}")]
+    DeleteBlocked(String),
+
     #[error("internal: {0}")]
     Internal(String),
 }
