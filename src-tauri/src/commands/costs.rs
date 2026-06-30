@@ -57,7 +57,9 @@ pub(crate) fn list_impl(conn: &Connection, project_id: i64) -> AppResult<Vec<Cos
     )?;
     let rows = stmt.query_map([project_id], row_to_entry)?;
     let mut out = Vec::new();
-    for r in rows { out.push(r?); }
+    for r in rows {
+        out.push(r?);
+    }
     Ok(out)
 }
 
@@ -76,7 +78,9 @@ pub(crate) fn create_impl(
         |r| r.get(0),
     )?;
     if ok == 0 {
-        return Err(AppError::Validation("科目与项目公司不匹配或科目不存在".into()));
+        return Err(AppError::Validation(
+            "科目与项目公司不匹配或科目不存在".into(),
+        ));
     }
     conn.execute(
         "INSERT INTO cost_entries(project_id, category_id, incurred_at, amount_cents, description, notes)
@@ -119,7 +123,10 @@ pub(crate) fn update_impl(
         ],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "cost_entry", id });
+        return Err(AppError::NotFound {
+            entity: "cost_entry",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -131,9 +138,14 @@ pub(crate) fn delete_impl(conn: &Connection, id: i64) -> AppResult<()> {
 pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<CostEntry> {
     conn.query_row(
         "SELECT * FROM cost_entries WHERE id = ?1 AND deleted_at IS NULL",
-        [id], row_to_entry,
-    ).map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "cost_entry", id },
+        [id],
+        row_to_entry,
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
+            entity: "cost_entry",
+            id,
+        },
         other => AppError::Db(other),
     })
 }
@@ -192,18 +204,24 @@ mod tests {
     use crate::commands::auth::setup_at;
     use tempfile::{tempdir, TempDir};
 
-    struct TestDb { conn: Connection, _dir: TempDir }
+    struct TestDb {
+        conn: Connection,
+        _dir: TempDir,
+    }
     impl TestDb {
         fn new() -> Self {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
-            conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
-            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", []).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('Co')", [])
+                .unwrap();
+            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+                .unwrap();
             conn.execute(
                 "INSERT INTO cost_categories(company_id, name, is_system, sort_order)
                  VALUES(1, '差旅', 1, 0)",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
             Self { conn, _dir: dir }
         }
     }
@@ -238,7 +256,9 @@ mod tests {
     fn category_company_mismatch_rejected() {
         let db = TestDb::new();
         // Create a second company and a category under it.
-        db.conn.execute("INSERT INTO companies(name) VALUES('Other')", []).unwrap();
+        db.conn
+            .execute("INSERT INTO companies(name) VALUES('Other')", [])
+            .unwrap();
         db.conn.execute(
             "INSERT INTO cost_categories(company_id, name, is_system, sort_order) VALUES(2, 'X', 0, 0)",
             [],
@@ -256,10 +276,14 @@ mod tests {
         delete_impl(&db.conn, e.id).unwrap();
         assert_eq!(list_impl(&db.conn, 1).unwrap().len(), 0);
         // Row still exists with deleted_at set.
-        let dt: Option<String> = db.conn.query_row(
-            "SELECT deleted_at FROM cost_entries WHERE id = ?1",
-            [e.id], |r| r.get(0),
-        ).unwrap();
+        let dt: Option<String> = db
+            .conn
+            .query_row(
+                "SELECT deleted_at FROM cost_entries WHERE id = ?1",
+                [e.id],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert!(dt.is_some());
     }
 }

@@ -6,7 +6,12 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
 const ALLOWED_STATUSES: [&str; 6] = [
-    "negotiating", "pending", "in_progress", "delivered", "settled", "archived",
+    "negotiating",
+    "pending",
+    "in_progress",
+    "delivered",
+    "settled",
+    "archived",
 ];
 
 #[derive(Debug, Clone, Serialize)]
@@ -49,7 +54,8 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         client_name: row.get("client_name")?,
         status: row.get("status")?,
         contract_amount_cents: row.get("contract_amount_cents")?,
-        contract_amount_is_tax_inclusive: row.get::<_, i64>("contract_amount_is_tax_inclusive")? != 0,
+        contract_amount_is_tax_inclusive: row.get::<_, i64>("contract_amount_is_tax_inclusive")?
+            != 0,
         tax_rate: row.get("tax_rate")?,
         start_date: row.get("start_date")?,
         end_date: row.get("end_date")?,
@@ -105,7 +111,9 @@ pub(crate) fn list_impl(
     let mut stmt = conn.prepare(sql)?;
     let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), row_to_project)?;
     let mut out = Vec::new();
-    for r in rows { out.push(r?); }
+    for r in rows {
+        out.push(r?);
+    }
     Ok(out)
 }
 
@@ -114,8 +122,12 @@ pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<Project> {
         "SELECT * FROM projects WHERE id = ?1 AND deleted_at IS NULL",
         [id],
         row_to_project,
-    ).map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "project", id },
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
+            entity: "project",
+            id,
+        },
         other => AppError::Db(other),
     })
 }
@@ -156,11 +168,7 @@ pub(crate) fn create_impl(
     get_impl(conn, id)
 }
 
-pub(crate) fn update_impl(
-    conn: &Connection,
-    id: i64,
-    input: &ProjectInput,
-) -> AppResult<Project> {
+pub(crate) fn update_impl(conn: &Connection, id: i64, input: &ProjectInput) -> AppResult<Project> {
     validate(input)?;
     let n = conn.execute(
         "UPDATE projects SET
@@ -191,7 +199,10 @@ pub(crate) fn update_impl(
         ],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "project", id });
+        return Err(AppError::NotFound {
+            entity: "project",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -206,7 +217,10 @@ pub(crate) fn set_status_impl(conn: &Connection, id: i64, status: &str) -> AppRe
         rusqlite::params![status, id],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "project", id });
+        return Err(AppError::NotFound {
+            entity: "project",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -271,12 +285,16 @@ mod tests {
     use crate::commands::auth::setup_at;
     use tempfile::{tempdir, TempDir};
 
-    struct TestDb { conn: Connection, _dir: TempDir }
+    struct TestDb {
+        conn: Connection,
+        _dir: TempDir,
+    }
     impl TestDb {
         fn new() -> Self {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
-            conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('Co')", [])
+                .unwrap();
             Self { conn, _dir: dir }
         }
     }
@@ -310,10 +328,14 @@ mod tests {
     fn create_seeds_categories_for_company() {
         let db = TestDb::new();
         create_impl(&db.conn, 1, &input("P")).unwrap();
-        let n: i64 = db.conn.query_row(
-            "SELECT COUNT(*) FROM cost_categories WHERE company_id = 1",
-            [], |r| r.get(0),
-        ).unwrap();
+        let n: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM cost_categories WHERE company_id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(n, 9);
     }
 
@@ -336,8 +358,10 @@ mod tests {
     #[test]
     fn list_filters_by_status() {
         let db = TestDb::new();
-        let mut a = input("A"); a.status = Some("in_progress".into());
-        let mut b = input("B"); b.status = Some("delivered".into());
+        let mut a = input("A");
+        a.status = Some("in_progress".into());
+        let mut b = input("B");
+        b.status = Some("delivered".into());
         create_impl(&db.conn, 1, &a).unwrap();
         create_impl(&db.conn, 1, &b).unwrap();
         assert_eq!(list_impl(&db.conn, 1, None).unwrap().len(), 2);
@@ -356,23 +380,33 @@ mod tests {
     fn delete_cascades_to_cost_entries() {
         let db = TestDb::new();
         let p = create_impl(&db.conn, 1, &input("P")).unwrap();
-        let cat_id: i64 = db.conn.query_row(
-            "SELECT id FROM cost_categories WHERE company_id = 1 LIMIT 1",
-            [], |r| r.get(0),
-        ).unwrap();
-        db.conn.execute(
-            "INSERT INTO cost_entries(project_id, category_id, incurred_at, amount_cents)
+        let cat_id: i64 = db
+            .conn
+            .query_row(
+                "SELECT id FROM cost_categories WHERE company_id = 1 LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO cost_entries(project_id, category_id, incurred_at, amount_cents)
              VALUES(?1, ?2, '2026-06-01', 100)",
-            [p.id, cat_id],
-        ).unwrap();
+                [p.id, cat_id],
+            )
+            .unwrap();
         delete_impl(&db.conn, p.id).unwrap();
         // project gone from active list
         assert_eq!(list_impl(&db.conn, 1, None).unwrap().len(), 0);
         // cost entry soft deleted too
-        let entry_del: Option<String> = db.conn.query_row(
-            "SELECT deleted_at FROM cost_entries WHERE project_id = ?1",
-            [p.id], |r| r.get(0),
-        ).unwrap();
+        let entry_del: Option<String> = db
+            .conn
+            .query_row(
+                "SELECT deleted_at FROM cost_entries WHERE project_id = ?1",
+                [p.id],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert!(entry_del.is_some());
     }
 }

@@ -77,7 +77,9 @@ pub(crate) fn list_impl(conn: &Connection, company_id: i64) -> AppResult<Vec<Cos
     )?;
     let rows = stmt.query_map([company_id], row_to_category)?;
     let mut out = Vec::new();
-    for r in rows { out.push(r?); }
+    for r in rows {
+        out.push(r?);
+    }
     Ok(out)
 }
 
@@ -113,20 +115,30 @@ pub(crate) fn update_impl(
         rusqlite::params![input.name.trim(), id],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "cost_category", id });
+        return Err(AppError::NotFound {
+            entity: "cost_category",
+            id,
+        });
     }
     get_impl(conn, id)
 }
 
 pub(crate) fn delete_impl(conn: &Connection, id: i64) -> AppResult<()> {
-    let row: Option<(i64, Option<String>)> = conn.query_row(
-        "SELECT is_system, deleted_at FROM cost_categories WHERE id = ?1",
-        [id],
-        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
-    ).optional()?;
+    let row: Option<(i64, Option<String>)> = conn
+        .query_row(
+            "SELECT is_system, deleted_at FROM cost_categories WHERE id = ?1",
+            [id],
+            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
+        )
+        .optional()?;
     let (is_system, already_deleted) = match row {
         Some(x) => x,
-        None => return Err(AppError::NotFound { entity: "cost_category", id }),
+        None => {
+            return Err(AppError::NotFound {
+                entity: "cost_category",
+                id,
+            })
+        }
     };
     if is_system == 1 {
         return Err(AppError::DeleteBlocked("预设科目不可删除".into()));
@@ -157,7 +169,8 @@ pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<CostCategory> {
         "SELECT * FROM cost_categories WHERE id = ?1 AND deleted_at IS NULL",
         [id],
         row_to_category,
-    ).map_err(|e| match e {
+    )
+    .map_err(|e| match e {
         rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
             entity: "cost_category",
             id,
@@ -217,15 +230,18 @@ pub fn seed_preset_categories_if_empty(
 mod tests {
     use super::*;
     use crate::commands::auth::setup_at;
-    use rusqlite::OptionalExtension;
     use tempfile::{tempdir, TempDir};
 
-    struct TestDb { conn: Connection, _dir: TempDir }
+    struct TestDb {
+        conn: Connection,
+        _dir: TempDir,
+    }
     impl TestDb {
         fn new() -> Self {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
-            conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('Co')", [])
+                .unwrap();
             Self { conn, _dir: dir }
         }
     }
@@ -251,7 +267,14 @@ mod tests {
     #[test]
     fn create_custom_category() {
         let db = TestDb::new();
-        let c = create_impl(&db.conn, 1, &CostCategoryInput { name: "广告投放".into() }).unwrap();
+        let c = create_impl(
+            &db.conn,
+            1,
+            &CostCategoryInput {
+                name: "广告投放".into(),
+            },
+        )
+        .unwrap();
         assert!(!c.is_system);
         assert_eq!(c.name, "广告投放");
     }
@@ -269,15 +292,16 @@ mod tests {
     fn delete_in_use_blocked() {
         let db = TestDb::new();
         let cat = create_impl(&db.conn, 1, &CostCategoryInput { name: "X".into() }).unwrap();
-        db.conn.execute(
-            "INSERT INTO projects(company_id, name) VALUES(1, 'P')",
-            [],
-        ).unwrap();
-        db.conn.execute(
-            "INSERT INTO cost_entries(project_id, category_id, incurred_at, amount_cents)
+        db.conn
+            .execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO cost_entries(project_id, category_id, incurred_at, amount_cents)
              VALUES(1, ?1, '2026-06-01', 100)",
-            [cat.id],
-        ).unwrap();
+                [cat.id],
+            )
+            .unwrap();
         let err = delete_impl(&db.conn, cat.id).unwrap_err();
         assert!(matches!(err, AppError::DeleteBlocked(_)));
     }

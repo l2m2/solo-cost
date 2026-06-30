@@ -42,7 +42,10 @@ pub fn project_cost_summary(conn: &Connection, project_id: i64) -> AppResult<Pro
         total += b.total_cents;
         by_category.push(b);
     }
-    Ok(ProjectCostSummary { total_cents: total, by_category })
+    Ok(ProjectCostSummary {
+        total_cents: total,
+        by_category,
+    })
 }
 
 #[cfg(test)]
@@ -51,18 +54,24 @@ mod tests {
     use crate::commands::auth::setup_at;
     use tempfile::{tempdir, TempDir};
 
-    struct TestDb { conn: Connection, _dir: TempDir }
+    struct TestDb {
+        conn: Connection,
+        _dir: TempDir,
+    }
     impl TestDb {
         fn new() -> Self {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
-            conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
-            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", []).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('Co')", [])
+                .unwrap();
+            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+                .unwrap();
             conn.execute(
                 "INSERT INTO cost_categories(company_id, name, is_system, sort_order)
                  VALUES(1, '差旅', 1, 0), (1, '硬件', 1, 1)",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
             Self { conn, _dir: dir }
         }
     }

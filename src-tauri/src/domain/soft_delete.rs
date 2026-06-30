@@ -15,7 +15,10 @@ pub fn soft_delete_project(conn: &Connection, id: i64) -> AppResult<()> {
         rusqlite::params![ts, id],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "project", id });
+        return Err(AppError::NotFound {
+            entity: "project",
+            id,
+        });
     }
     tx.execute(
         "UPDATE cost_entries SET deleted_at = ?1
@@ -28,22 +31,22 @@ pub fn soft_delete_project(conn: &Connection, id: i64) -> AppResult<()> {
 
 pub fn restore_project(conn: &Connection, id: i64) -> AppResult<()> {
     let tx = conn.unchecked_transaction()?;
-    let ts: Option<String> = tx.query_row(
-        "SELECT deleted_at FROM projects WHERE id = ?1",
-        [id],
-        |r| r.get(0),
-    ).map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "project", id },
-        other => AppError::Db(other),
-    })?;
+    let ts: Option<String> = tx
+        .query_row("SELECT deleted_at FROM projects WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
+                entity: "project",
+                id,
+            },
+            other => AppError::Db(other),
+        })?;
     let ts = match ts {
         Some(t) => t,
         None => return Ok(()), // already active, no-op
     };
-    tx.execute(
-        "UPDATE projects SET deleted_at = NULL WHERE id = ?1",
-        [id],
-    )?;
+    tx.execute("UPDATE projects SET deleted_at = NULL WHERE id = ?1", [id])?;
     tx.execute(
         "UPDATE cost_entries SET deleted_at = NULL
          WHERE project_id = ?1 AND deleted_at = ?2",
@@ -61,27 +64,35 @@ pub fn soft_delete_cost_entry(conn: &Connection, id: i64) -> AppResult<()> {
         rusqlite::params![ts, id],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "cost_entry", id });
+        return Err(AppError::NotFound {
+            entity: "cost_entry",
+            id,
+        });
     }
     Ok(())
 }
 
 pub fn restore_cost_entry(conn: &Connection, id: i64) -> AppResult<()> {
-    let row: Option<(i64, Option<String>)> = conn.query_row(
-        "SELECT ce.project_id, p.deleted_at
+    let row: Option<(i64, Option<String>)> = conn
+        .query_row(
+            "SELECT ce.project_id, p.deleted_at
          FROM cost_entries ce JOIN projects p ON p.id = ce.project_id
          WHERE ce.id = ?1",
-        [id],
-        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
-    ).optional()?;
+            [id],
+            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
+        )
+        .optional()?;
     let (_project_id, project_deleted_at) = match row {
         Some(t) => t,
-        None => return Err(AppError::NotFound { entity: "cost_entry", id }),
+        None => {
+            return Err(AppError::NotFound {
+                entity: "cost_entry",
+                id,
+            })
+        }
     };
     if project_deleted_at.is_some() {
-        return Err(AppError::DeleteBlocked(
-            "项目已删除，请先恢复项目".into(),
-        ));
+        return Err(AppError::DeleteBlocked("项目已删除，请先恢复项目".into()));
     }
     conn.execute(
         "UPDATE cost_entries SET deleted_at = NULL WHERE id = ?1",
@@ -106,25 +117,27 @@ mod tests {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
             // create one company and one project + two cost entries for fixtures
-            conn.execute("INSERT INTO companies(name) VALUES('C')", []).unwrap();
-            conn.execute(
-                "INSERT INTO projects(company_id, name) VALUES(1, 'P')",
-                [],
-            ).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('C')", [])
+                .unwrap();
+            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+                .unwrap();
             conn.execute(
                 "INSERT INTO cost_categories(company_id, name, is_system) VALUES(1, '差旅', 1)",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
             conn.execute(
                 "INSERT INTO cost_entries(project_id, category_id, incurred_at, amount_cents)
                  VALUES(1, 1, '2026-06-01', 12345)",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
             conn.execute(
                 "INSERT INTO cost_entries(project_id, category_id, incurred_at, amount_cents)
                  VALUES(1, 1, '2026-06-02', 6789)",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
             Self { conn, _dir: dir }
         }
     }
@@ -166,7 +179,10 @@ mod tests {
         restore_project(&db.conn, 1).unwrap();
         assert!(deleted_at(&db.conn, "projects", 1).is_none());
         assert!(deleted_at(&db.conn, "cost_entries", 1).is_none());
-        assert_eq!(deleted_at(&db.conn, "cost_entries", 2).unwrap(), entry2_deleted_at);
+        assert_eq!(
+            deleted_at(&db.conn, "cost_entries", 2).unwrap(),
+            entry2_deleted_at
+        );
     }
 
     #[test]

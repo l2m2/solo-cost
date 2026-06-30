@@ -1,6 +1,6 @@
-mod domain;
 mod commands;
 mod db;
+mod domain;
 mod error;
 mod state;
 
@@ -52,6 +52,9 @@ pub fn run() {
             commands::costs::update_cost_entry,
             commands::costs::delete_cost_entry,
             commands::costs::get_project_cost_summary,
+            commands::trash::list_trash,
+            commands::trash::restore_trash_item,
+            commands::trash::purge_trash_item,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
