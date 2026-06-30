@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- 项目财务汇总：支持计算含税/不含税合同收入换算、税额拆分、人力成本（逐条舍入后累加，避免浮点漂移）、综合成本、毛利润及利润率、回款进度与回款率，分母为零时安全返回 0
 - 项目软删除现级联覆盖收款节点、任务、工时记录（整组同一时间戳），恢复项目时整棵子树一并恢复；任务软删除同步软删其下工时记录，恢复任务若父项目已删则阻断并提示先恢复项目；成员若存在有效工时记录则拒绝软删除
 - 数据库迁移 0003：新增成员（members）、合同收款（contract_payments）、任务（tasks）、工时记录（time_logs）四张业务表，支持成员管理、收款节点跟踪、任务分配、工时记录；Schema version 2 → 3
 - 工时与日成本快照约束：time_logs 表约束 hours 取值 0-24、daily_cost_snapshot_cents 非负，确保数据合理性
