@@ -19,3 +19,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 项目、成本科目、成本录入三张表（schema_version 2）
 - `AppError::DeleteBlocked` 变体，用于拒绝删除语义
 - `domain::soft_delete` 模块：项目与成本录入的软删除/恢复，支持同一时间戳级联删除及按时间戳整组恢复（恢复项目时不影响独立删除的成本条目）；恢复成本条目时若关联项目已删则阻断并提示先恢复项目
+- 成本科目管理后端：支持创建、重命名、软删除、列表查询
+- 首次访问公司时自动幂等种子 9 个系统预设科目（外包成本、硬件采购、服务器与SaaS 等），预设科目不可删除
+- 删除系统预设科目或仍被成本录入引用的科目时返回 `DeleteBlocked` 错误
