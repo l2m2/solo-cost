@@ -61,6 +61,12 @@ pub fn run() {
             commands::members::update_member,
             commands::members::set_member_active,
             commands::members::delete_member,
+            commands::payments::list_payments,
+            commands::payments::get_payment,
+            commands::payments::create_payment,
+            commands::payments::update_payment,
+            commands::payments::mark_payment_received,
+            commands::payments::delete_payment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
