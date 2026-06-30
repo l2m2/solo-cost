@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- 数据库迁移 0003：新增成员（members）、合同收款（contract_payments）、任务（tasks）、工时记录（time_logs）四张业务表，支持成员管理、收款节点跟踪、任务分配、工时记录；Schema version 2 → 3
+- 工时与日成本快照约束：time_logs 表约束 hours 取值 0-24、daily_cost_snapshot_cents 非负，确保数据合理性
 - 集成 Tauri 2，支持将前端打包为原生桌面应用
 - 统一错误类型 `AppError`，可序列化传递给前端展示
 - 应用状态容器，持有加密数据库连接
