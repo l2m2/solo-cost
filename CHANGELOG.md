@@ -16,3 +16,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 公司管理页面：支持创建、编辑公司信息（工商名、税号、默认税率等），并可切换当前公司
 - Header 顶部公司切换器：通过下拉菜单快速切换当前公司，支持锁定操作
 - 仪表盘显示当前所选公司名称，无公司时引导用户前往创建
+- 项目、成本科目、成本录入三张表（schema_version 2）
+- `AppError::DeleteBlocked` 变体，用于拒绝删除语义
