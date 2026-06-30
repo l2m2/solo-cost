@@ -55,6 +55,12 @@ pub fn run() {
             commands::trash::list_trash,
             commands::trash::restore_trash_item,
             commands::trash::purge_trash_item,
+            commands::members::list_members,
+            commands::members::get_member,
+            commands::members::create_member,
+            commands::members::update_member,
+            commands::members::set_member_active,
+            commands::members::delete_member,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
