@@ -1,11 +1,14 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Building2, Settings } from "lucide-react";
+import { LayoutDashboard, Building2, FolderKanban, Tag, Trash2, Settings } from "lucide-react";
 
 const ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, key: "nav.dashboard" as const },
+  { to: "/projects", icon: FolderKanban, key: "nav.projects" as const },
+  { to: "/categories", icon: Tag, key: "nav.categories" as const },
   { to: "/companies", icon: Building2, key: "nav.companies" as const },
+  { to: "/trash", icon: Trash2, key: "nav.trash" as const },
   { to: "/settings", icon: Settings, key: "nav.settings" as const },
 ];
 
