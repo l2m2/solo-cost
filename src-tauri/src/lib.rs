@@ -36,6 +36,11 @@ pub fn run() {
             commands::companies::update_company,
             commands::companies::get_current_company_id,
             commands::companies::set_current_company,
+            commands::categories::list_categories,
+            commands::categories::create_category,
+            commands::categories::update_category,
+            commands::categories::delete_category,
+            commands::categories::seed_preset_categories_if_empty,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
