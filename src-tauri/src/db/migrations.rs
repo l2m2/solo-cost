@@ -1,9 +1,8 @@
 use crate::error::{AppError, AppResult};
 use rusqlite::Connection;
 
-const MIGRATIONS: &[(&str, &str)] = &[
-    ("0001_init", include_str!("../../migrations/0001_init.sql")),
-];
+const MIGRATIONS: &[(&str, &str)] =
+    &[("0001_init", include_str!("../../migrations/0001_init.sql"))];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
     ensure_meta_table(conn)?;

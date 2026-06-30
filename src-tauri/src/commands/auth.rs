@@ -100,7 +100,9 @@ mod tests {
         drop(conn);
         let conn = unlock_at(&path, "s").unwrap();
         // Query companies table to confirm unlock succeeded.
-        let n: i64 = conn.query_row("SELECT count(*) FROM companies", [], |r| r.get(0)).unwrap();
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM companies", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(n, 0);
     }
 

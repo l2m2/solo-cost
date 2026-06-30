@@ -54,12 +54,13 @@ fn validate(input: &CompanyInput) -> AppResult<()> {
 }
 
 pub(crate) fn list_impl(conn: &Connection) -> AppResult<Vec<Company>> {
-    let mut stmt = conn.prepare(
-        "SELECT * FROM companies WHERE deleted_at IS NULL ORDER BY id DESC",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT * FROM companies WHERE deleted_at IS NULL ORDER BY id DESC")?;
     let rows = stmt.query_map([], row_to_company)?;
     let mut out = Vec::new();
-    for r in rows { out.push(r?); }
+    for r in rows {
+        out.push(r?);
+    }
     Ok(out)
 }
 
@@ -70,7 +71,10 @@ pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<Company> {
         row_to_company,
     )
     .map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "company", id },
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
+            entity: "company",
+            id,
+        },
         other => AppError::Db(other),
     })
 }
@@ -116,7 +120,10 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &CompanyInput) -> A
         ],
     )?;
     if affected == 0 {
-        return Err(AppError::NotFound { entity: "company", id });
+        return Err(AppError::NotFound {
+            entity: "company",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -143,18 +150,43 @@ pub(crate) fn set_current_impl(conn: &Connection, id: i64) -> AppResult<()> {
     Ok(())
 }
 
-fn with_conn<R>(state: &tauri::State<AppState>, f: impl FnOnce(&Connection) -> AppResult<R>) -> AppResult<R> {
+fn with_conn<R>(
+    state: &tauri::State<AppState>,
+    f: impl FnOnce(&Connection) -> AppResult<R>,
+) -> AppResult<R> {
     let guard = state.conn.lock().unwrap();
     let conn = guard.as_ref().ok_or(AppError::Locked)?;
     f(conn)
 }
 
-#[tauri::command] pub fn list_companies(state: tauri::State<AppState>) -> AppResult<Vec<Company>> { with_conn(&state, list_impl) }
-#[tauri::command] pub fn get_company(state: tauri::State<AppState>, id: i64) -> AppResult<Company> { with_conn(&state, |c| get_impl(c, id)) }
-#[tauri::command] pub fn create_company(state: tauri::State<AppState>, input: CompanyInput) -> AppResult<Company> { with_conn(&state, |c| create_impl(c, &input)) }
-#[tauri::command] pub fn update_company(state: tauri::State<AppState>, id: i64, input: CompanyInput) -> AppResult<Company> { with_conn(&state, |c| update_impl(c, id, &input)) }
-#[tauri::command] pub fn get_current_company_id(state: tauri::State<AppState>) -> AppResult<Option<i64>> { with_conn(&state, get_current_impl) }
-#[tauri::command] pub fn set_current_company(state: tauri::State<AppState>, id: i64) -> AppResult<()> { with_conn(&state, |c| set_current_impl(c, id)) }
+#[tauri::command]
+pub fn list_companies(state: tauri::State<AppState>) -> AppResult<Vec<Company>> {
+    with_conn(&state, list_impl)
+}
+#[tauri::command]
+pub fn get_company(state: tauri::State<AppState>, id: i64) -> AppResult<Company> {
+    with_conn(&state, |c| get_impl(c, id))
+}
+#[tauri::command]
+pub fn create_company(state: tauri::State<AppState>, input: CompanyInput) -> AppResult<Company> {
+    with_conn(&state, |c| create_impl(c, &input))
+}
+#[tauri::command]
+pub fn update_company(
+    state: tauri::State<AppState>,
+    id: i64,
+    input: CompanyInput,
+) -> AppResult<Company> {
+    with_conn(&state, |c| update_impl(c, id, &input))
+}
+#[tauri::command]
+pub fn get_current_company_id(state: tauri::State<AppState>) -> AppResult<Option<i64>> {
+    with_conn(&state, get_current_impl)
+}
+#[tauri::command]
+pub fn set_current_company(state: tauri::State<AppState>, id: i64) -> AppResult<()> {
+    with_conn(&state, |c| set_current_impl(c, id))
+}
 
 #[cfg(test)]
 mod tests {
