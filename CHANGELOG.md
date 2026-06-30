@@ -29,3 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 项目维度科目汇总接口 `get_project_cost_summary`：按科目聚合金额，仅含有支出的科目，按金额降序排列
 - 回收站后端：按当前公司列出软删除的项目与成本录入，整组恢复或物理清理（`list_trash` / `restore_trash_item` / `purge_trash_item`）
 - 物理清理项目时先级联删除其下成本录入，避免外键残留
+- 金额工具：人民币分↔元互转，以及带千位分隔符的 ¥ 格式化展示
+- 项目状态映射工具：6 种状态的中文标签与 Badge 样式色彩
+- MoneyInput 受控输入组件：前缀 ¥ 符号，输入时内部维护文本状态，失焦前不传播非法值
+- 前端 TS 类型定义扩展：新增项目、成本科目、成本录入、科目汇总、回收站条目等 9 个接口
+- UI 组件库扩充：新增 Tabs、Select、Badge、Table、Textarea 五个基础组件
+- 前端多语言扩展：新增成本科目、项目、成本录入、回收站、状态映射的中文文案
