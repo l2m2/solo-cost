@@ -18,3 +18,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 仪表盘显示当前所选公司名称，无公司时引导用户前往创建
 - 项目、成本科目、成本录入三张表（schema_version 2）
 - `AppError::DeleteBlocked` 变体，用于拒绝删除语义
+- `domain::soft_delete` 模块：项目与成本录入的软删除/恢复，支持同一时间戳级联删除及按时间戳整组恢复（恢复项目时不影响独立删除的成本条目）；恢复成本条目时若关联项目已删则阻断并提示先恢复项目
