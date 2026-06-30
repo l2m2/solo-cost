@@ -13,3 +13,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `ping` IPC 命令，前端可验证与 Rust 后端的通信通路
 - 前端首页展示 IPC 响应（`ipc: pong`），确认打通前后端
 - 主密码命令：`setup`（初始化加密数据库）、`unlock`（密码验证并解锁）、`lock`（锁定）、`is_initialized`（检查是否已初始化）
+- 公司管理页面：支持创建、编辑公司信息（工商名、税号、默认税率等），并可切换当前公司
+- Header 顶部公司切换器：通过下拉菜单快速切换当前公司，支持锁定操作
+- 仪表盘显示当前所选公司名称，无公司时引导用户前往创建
