@@ -5,4 +5,5 @@ pub mod costs;
 pub mod members;
 pub mod payments;
 pub mod projects;
+pub mod tasks;
 pub mod trash;
