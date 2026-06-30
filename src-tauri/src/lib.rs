@@ -41,6 +41,12 @@ pub fn run() {
             commands::categories::update_category,
             commands::categories::delete_category,
             commands::categories::seed_preset_categories_if_empty,
+            commands::projects::list_projects,
+            commands::projects::get_project,
+            commands::projects::create_project,
+            commands::projects::update_project,
+            commands::projects::set_project_status,
+            commands::projects::delete_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
