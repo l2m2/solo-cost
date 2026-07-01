@@ -42,10 +42,10 @@ export default function App() {
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="members" element={<MembersPage />} />
             <Route path="companies" element={<CompaniesPage />} />
             <Route path="projects" element={<ProjectsListPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
+            <Route path="members" element={<MembersPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="trash" element={<TrashPage />} />
             <Route path="settings" element={<div>设置（M4 实现）</div>} />
