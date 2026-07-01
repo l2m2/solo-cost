@@ -731,7 +731,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                       size="sm"
                       variant="ghost"
                       onClick={async () => {
-                        if (!confirm("确认删除该任务？关联工时将被一并软删。")) return;
+                        if (!confirm(t("task.deleteConfirm", { title: tk.title }))) return;
                         try { await softDelete(tk.id, projectId); }
                         catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
                       }}
@@ -792,7 +792,14 @@ function TaskForm({ members, initial, onSubmit, onCancel }: {
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
   const [busy, setBusy] = useState(false);
 
+  const currentAssignee = initial?.assignee_id
+    ? members.find((m) => m.id === initial.assignee_id)
+    : null;
   const active = members.filter((m) => m.is_active);
+  // Include the current assignee even if archived, so the Select value has a matching item.
+  const options = currentAssignee && !currentAssignee.is_active
+    ? [currentAssignee, ...active]
+    : active;
 
   const submit = async () => {
     if (!title.trim()) return toast.error(t("task.titleRequired"));
@@ -822,8 +829,10 @@ function TaskForm({ members, initial, onSubmit, onCancel }: {
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__none">{t("task.unassigned")}</SelectItem>
-              {active.map((m) => (
-                <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+              {options.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {m.is_active ? m.name : `${m.name}（已归档）`}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1053,6 +1062,7 @@ function TimeLogEditForm({ initial, onSubmit, onCancel }: {
         <Button
           disabled={busy}
           onClick={async () => {
+            if (!date) return toast.error(t("timelog.dateRequired"));
             if (hours < 0 || hours > 24) return toast.error(t("timelog.hoursRequired"));
             setBusy(true);
             try { await onSubmit({ work_date: date, hours, notes: notes.trim() || null }); }

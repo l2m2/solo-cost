@@ -33,18 +33,27 @@ export const useCostsStore = create<S>((set, get) => ({
   },
   async create(projectId, input) {
     await call<CostEntry>("create_cost_entry", { projectId, input });
-    await get().loadFor(projectId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   async update(id, input, projectId) {
     await call<CostEntry>("update_cost_entry", { id, input });
-    await get().loadFor(projectId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   async remove(id, projectId) {
     await call<void>("delete_cost_entry", { id });
-    await get().loadFor(projectId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   reset() {
     set({ entriesByProject: {}, summaryByProject: {} });

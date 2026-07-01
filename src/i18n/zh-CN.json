@@ -172,7 +172,8 @@
     "filterByStatus": "按状态筛选",
     "allStatuses": "全部状态",
     "unassigned": "未指派",
-    "logsCount": "{{n}} 条工时"
+    "logsCount": "{{n}} 条工时",
+    "deleteConfirm": "确认删除任务「{{title}}」？关联工时将被一并软删，可在回收站恢复。"
   },
   "taskStatus": {
     "todo": "待办",

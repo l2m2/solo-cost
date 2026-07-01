@@ -21,13 +21,19 @@ export const usePaymentsStore = create<S>((set, get) => ({
   },
   async create(projectId, input) {
     await call<ContractPayment>("create_payment", { projectId, input });
-    await get().loadFor(projectId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   async update(id, input, projectId) {
     await call<ContractPayment>("update_payment", { id, input });
-    await get().loadFor(projectId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   async markReceived(id, actualAmountCents, actualReceivedAt, projectId) {
     await call<ContractPayment>("mark_payment_received", {
@@ -35,13 +41,19 @@ export const usePaymentsStore = create<S>((set, get) => ({
       actualAmountCents,
       actualReceivedAt,
     });
-    await get().loadFor(projectId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   async softDelete(id, projectId) {
     await call<void>("delete_payment", { id });
-    await get().loadFor(projectId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   reset() {
     set({ byProject: {} });
