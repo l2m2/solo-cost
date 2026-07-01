@@ -66,7 +66,7 @@ export function IntegrityFailedDialog() {
           </div>
         ) : (
           <div className="space-y-2 text-sm">
-            <div className="text-muted-foreground">系统内已有的自动备份：</div>
+            <div className="text-muted-foreground">{t("settings.backup.availableBackups")}</div>
             {list.map((b) => (
               <div
                 key={b.absolute_path}
@@ -84,7 +84,7 @@ export function IntegrityFailedDialog() {
           </div>
         )}
         <div className="space-y-2">
-          <Label>{t("settings.backup.chooseFile")}（可选自定义）</Label>
+          <Label>{t("settings.backup.chooseFile")}{t("settings.backup.chooseFileOptional")}</Label>
           <div className="flex gap-2">
             <Input
               readOnly
@@ -92,7 +92,7 @@ export function IntegrityFailedDialog() {
               placeholder="…/backups/auto_YYYYMMDD_HHmmss.db"
             />
             <Button variant="outline" onClick={chooseFile}>
-              浏览…
+              {t("settings.backup.browse")}
             </Button>
           </div>
         </div>

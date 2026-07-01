@@ -1,16 +1,129 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { save } from "@tauri-apps/plugin-dialog";
+import { save, open } from "@tauri-apps/plugin-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useBackupStore } from "@/stores/backup";
+import { useAuthStore } from "@/stores/auth";
+
+function RestoreDialog({ open: isOpen, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { list, loadList, restoreFromBackup } = useBackupStore();
+  const [selected, setSelected] = useState<string>("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadList();
+      setSelected("");
+      setPassword("");
+    }
+  }, [isOpen, loadList]);
+
+  const chooseFile = async () => {
+    const picked = await open({
+      multiple: false,
+      filters: [{ name: "SQLite db", extensions: ["db"] }],
+    });
+    if (typeof picked === "string") setSelected(picked);
+  };
+
+  const restore = async () => {
+    if (!selected) return toast.error(t("settings.backup.chooseFile"));
+    if (!password) return toast.error(t("login.password"));
+    if (!confirm(t("settings.backup.restoreConfirm"))) return;
+    setBusy(true);
+    try {
+      await restoreFromBackup(selected, password);
+      toast.success(t("settings.backup.restoreSuccess"));
+      // Reset to "locked" so login page renders and pulls fresh stores.
+      useAuthStore.setState({ status: "locked" });
+      navigate("/login", { replace: true });
+    } catch (e: unknown) {
+      toast.error(t("common.error", { msg: String(e) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("settings.backup.restore")}</DialogTitle>
+        </DialogHeader>
+        {list.length > 0 && (
+          <div className="space-y-2 text-sm">
+            <div className="text-muted-foreground">{t("settings.backup.availableBackups")}</div>
+            {list.map((b) => (
+              <div
+                key={b.absolute_path}
+                className="cursor-pointer hover:bg-accent p-2 rounded flex items-center justify-between"
+                onClick={() => setSelected(b.absolute_path)}
+              >
+                <span className={selected === b.absolute_path ? "font-medium" : undefined}>
+                  {b.created_at}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {(b.size_bytes / 1024).toFixed(0)} KB
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label>{t("settings.backup.chooseFile")}{t("settings.backup.chooseFileOptional")}</Label>
+          <div className="flex gap-2">
+            <Input
+              readOnly
+              value={selected}
+              placeholder="…/backups/auto_YYYYMMDD_HHmmss.db"
+            />
+            <Button variant="outline" onClick={chooseFile}>
+              {t("settings.backup.browse")}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>{t("settings.backup.restorePasswordPrompt")}</Label>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={restore} disabled={busy || !selected || !password}>
+            {t("settings.backup.restore")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function SettingsPage() {
   const { t } = useTranslation();
   const { status, list, loadStatus, loadList, createNow, exportPlaintext } =
     useBackupStore();
   const [busy, setBusy] = useState(false);
+  const [openRestore, setOpenRestore] = useState(false);
 
   useEffect(() => {
     loadStatus();
@@ -73,13 +186,16 @@ export default function SettingsPage() {
             <Button variant="outline" onClick={doExport} disabled={busy}>
               {t("settings.backup.exportPlaintext")}
             </Button>
+            <Button variant="outline" onClick={() => setOpenRestore(true)} disabled={busy}>
+              {t("settings.backup.restore")}
+            </Button>
           </div>
         </CardContent>
       </Card>
       {list.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">备份历史</CardTitle>
+            <CardTitle className="text-base">{t("settings.backup.backupHistory")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             {list.map((b) => (
@@ -99,6 +215,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+      <RestoreDialog open={openRestore} onClose={() => setOpenRestore(false)} />
     </div>
   );
 }
