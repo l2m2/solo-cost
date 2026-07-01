@@ -263,6 +263,30 @@ mod tests {
     #[test]
     fn purge_project_cascades_physical_delete() {
         let db = TestDb::new();
+        // augment fixture with task, contract_payment, time_log to test cascade deletes
+        db.conn
+            .execute(
+                "INSERT INTO members(company_id, name, daily_cost_cents) VALUES(1, 'M', 80000)",
+                [],
+            )
+            .unwrap();
+        db.conn
+            .execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", [])
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO contract_payments(project_id, name, expected_amount_cents)
+                 VALUES(1, '预付', 50000)",
+                [],
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO time_logs(task_id, member_id, work_date, hours, daily_cost_snapshot_cents)
+                 VALUES(1, 1, '2026-06-01', 8.0, 80000)",
+                [],
+            )
+            .unwrap();
         soft_delete::soft_delete_project(&db.conn, 1).unwrap();
         purge_impl(&db.conn, "project", 1).unwrap();
         let n: i64 = db
@@ -281,6 +305,31 @@ mod tests {
             )
             .unwrap();
         assert_eq!(n2, 0);
+        let n3: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM tasks WHERE project_id = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(n3, 0);
+        let n4: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM contract_payments WHERE project_id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n4, 0);
+        let n5: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM time_logs WHERE task_id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n5, 0);
     }
 
     #[test]
