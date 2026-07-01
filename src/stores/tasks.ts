@@ -38,8 +38,11 @@ export const useTasksStore = create<S>((set, get) => ({
   async softDelete(id, projectId) {
     // Task delete cascades to time_logs, which affects labor cost
     await call<void>("delete_task", { id });
-    await get().loadFor(projectId, get().statusFilter);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(projectId, get().statusFilter);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   reset() {
     set({ byProject: {}, statusFilter: null });

@@ -31,8 +31,11 @@ export const useTimelogsStore = create<S>((set, get) => ({
   },
   async softDelete(id, taskId, projectId) {
     await call<void>("delete_time_log", { id });
-    await get().loadFor(taskId);
-    await useFinancialStore.getState().refresh(projectId);
+    try {
+      await get().loadFor(taskId);
+    } finally {
+      await useFinancialStore.getState().refresh(projectId);
+    }
   },
   reset() {
     set({ byTask: {} });
