@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- 工时记录后端：支持按任务或项目查询、创建、编辑、软删除；创建时自动将成员当前日成本（`daily_cost_cents`）写入快照字段，调薪后历史工时成本不受影响；编辑仅允许修改工时数、工作日期与备注；创建时校验任务与成员属于同一公司，跨公司写入被拒绝
 - 任务管理后端：支持创建、查询、编辑、按状态筛选（todo / in_progress / done）及软删除；删除任务时级联软删该任务的所有工时记录
 - 合同收款节点后端：支持创建、查询、编辑、软删除，新节点按添加顺序排列；`mark_payment_received` 专用命令一键记录实收金额与到账日期
 - 成员管理后端：支持创建、查询、编辑、归档切换（`set_member_active`）及软删除；成员存在有效工时记录时拒绝删除并返回 `DeleteBlocked`
