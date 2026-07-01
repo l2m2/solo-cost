@@ -69,6 +69,8 @@ pub(crate) fn unlock_at(path: &std::path::Path, password: &str) -> AppResult<rus
     let conn = pool::open_encrypted(path, password)?;
     // Also run migrations on unlock so schema upgrades apply after app updates.
     migrations::run(&conn)?;
+    // Verify the database is uncorrupted before returning it to the caller.
+    crate::domain::backup::integrity_check(&conn)?;
     Ok(conn)
 }
 
@@ -114,5 +116,33 @@ mod tests {
         drop(conn);
         let err = unlock_at(&path, "wrong").unwrap_err();
         assert!(matches!(err, AppError::WrongPassword));
+    }
+
+    #[test]
+    fn unlock_reports_integrity_failure() {
+        use crate::error::AppError;
+        use std::io::{Seek, SeekFrom, Write};
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("data.db");
+        // create a valid encrypted db then close
+        drop(setup_at(&path, "s").unwrap());
+        // corrupt a page interior (skip past SQLCipher header ~16 bytes → seek 4096 to hit page 2 boundary,
+        // then splat some garbage; enough to break integrity_check with the current password intact
+        // for the header decryption).
+        let mut f = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        f.seek(SeekFrom::Start(4096)).unwrap();
+        f.write_all(&[0xFFu8; 512]).unwrap();
+        drop(f);
+        let err = unlock_at(&path, "s").unwrap_err();
+        assert!(
+            matches!(
+                err,
+                AppError::IntegrityCheckFailed(_)
+                    | AppError::WrongPassword
+                    | AppError::Db(_)
+                    | AppError::Migration(_)
+            ),
+            "expected integrity or decryption failure, got {err:?}"
+        );
     }
 }

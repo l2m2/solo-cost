@@ -29,8 +29,6 @@ pub enum AppError {
     #[error("not found: {entity} #{id}")]
     NotFound { entity: &'static str, id: i64 },
 
-    // Consumed by T3 (unlock integrity gate); suppress until then.
-    #[allow(dead_code)]
     #[error("integrity check failed: {0}")]
     IntegrityCheckFailed(String),
 

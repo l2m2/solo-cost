@@ -104,8 +104,6 @@ pub fn rotate_auto_backups(app_data: &Path, keep: usize) -> AppResult<usize> {
     Ok(deleted)
 }
 
-// Consumed by T3 (unlock integrity gate); suppress until then.
-#[allow(dead_code)]
 pub fn integrity_check(conn: &Connection) -> AppResult<()> {
     let mut stmt = conn.prepare("PRAGMA integrity_check;")?;
     let mut rows = stmt.query([])?;
