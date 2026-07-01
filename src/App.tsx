@@ -12,6 +12,8 @@ import MembersPage from "@/routes/members";
 import ProjectsListPage from "@/routes/projects/list";
 import ProjectDetailPage from "@/routes/projects/detail";
 import TrashPage from "@/routes/trash";
+import SettingsPage from "@/routes/settings";
+import { IntegrityFailedDialog } from "@/components/dialogs/IntegrityFailedDialog";
 import "@/i18n";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -24,6 +26,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, [status, refresh]);
 
   if (status === "unknown") return null;
+  if (status === "corrupted") return <IntegrityFailedDialog />;
   if (status === "uninitialized" && location.pathname !== "/setup") return <Navigate to="/setup" replace />;
   if (status === "locked" && location.pathname !== "/login") return <Navigate to="/login" replace />;
   if (status === "unlocked" && (location.pathname === "/setup" || location.pathname === "/login")) {
@@ -48,7 +51,7 @@ export default function App() {
             <Route path="members" element={<MembersPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="trash" element={<TrashPage />} />
-            <Route path="settings" element={<div>设置（M4 实现）</div>} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

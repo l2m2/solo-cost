@@ -202,3 +202,16 @@ export interface ProjectFinancialSummary {
   actual_payment_cents: number;
   collection_rate: number;
 }
+
+export interface BackupInfo {
+  file_name: string;
+  absolute_path: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface BackupStatus {
+  last_backup_at: string | null;
+  auto_count: number;
+  should_auto_backup_now: boolean;
+}

@@ -214,5 +214,27 @@
     "cancel": "取消",
     "confirm": "确定",
     "error": "操作失败：{{msg}}"
+  },
+  "settings": {
+    "title": "设置",
+    "backup": {
+      "sectionTitle": "备份与恢复",
+      "statusLabel": "最近一次备份",
+      "never": "从未备份",
+      "count": "已保留 {{n}} 份自动备份（滚动 7 份）",
+      "runNow": "立即备份",
+      "restore": "从备份恢复",
+      "exportPlaintext": "导出明文备份…",
+      "exportWarning": "明文导出不加密，任何人拿到文件都能看全部数据，仅在你自己的设备上做迁移用途时使用",
+      "chooseFile": "选择备份文件",
+      "backingUp": "备份中…",
+      "success": "已备份到 {{path}}",
+      "restoreConfirm": "确认用此备份覆盖当前数据库？此操作不可撤销。",
+      "restorePasswordPrompt": "请输入该备份文件的主密码（通常与当前主密码相同）",
+      "restoreSuccess": "已从备份恢复，请重新解锁",
+      "corruptedTitle": "数据库损坏",
+      "corruptedBody": "启动检查发现数据库文件不一致。请从最近一份可用备份恢复：",
+      "corruptedNoBackup": "没有可用备份。请联系支持或从其他设备找回。"
+    }
   }
 }

@@ -10,8 +10,9 @@ import { useMembersStore } from "./members";
 import { usePaymentsStore } from "./payments";
 import { useTasksStore } from "./tasks";
 import { useTimelogsStore } from "./timelogs";
+import { useBackupStore } from "./backup";
 
-type Status = "unknown" | "uninitialized" | "locked" | "unlocked";
+type Status = "unknown" | "uninitialized" | "locked" | "unlocked" | "corrupted";
 
 interface AuthState {
   status: Status;
@@ -21,9 +22,11 @@ interface AuthState {
   lock: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   status: "unknown",
   async refresh() {
+    // If integrity check failed, do not overwrite the corrupted status.
+    if (get().status === "corrupted") return;
     const initialized = await call<boolean>("is_initialized");
     set({ status: initialized ? "locked" : "uninitialized" });
   },
@@ -32,8 +35,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ status: "unlocked" });
   },
   async unlock(password) {
-    await call<void>("unlock", { password });
-    set({ status: "unlocked" });
+    try {
+      await call<void>("unlock", { password });
+      // fire-and-forget: try to snapshot right after unlock
+      void useBackupStore.getState().maybeAutoBackup().catch(() => {});
+      set({ status: "unlocked" });
+    } catch (e: unknown) {
+      const msg = String(e);
+      if (msg.includes("integrity check failed")) {
+        set({ status: "corrupted" });
+      }
+      throw e;
+    }
   },
   async lock() {
     await call<void>("lock");
@@ -48,6 +61,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     usePaymentsStore.getState().reset();
     useTasksStore.getState().reset();
     useTimelogsStore.getState().reset();
+    useBackupStore.getState().reset();
     set({ status: "locked" });
   },
 }));
