@@ -30,8 +30,9 @@ import { usePaymentsStore } from "@/stores/payments";
 import { useTasksStore } from "@/stores/tasks";
 import { useTimelogsStore } from "@/stores/timelogs";
 import { useMembersStore } from "@/stores/members";
+import { useFinancialStore } from "@/stores/financial";
 import { Badge } from "@/components/ui/badge";
-import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput } from "@/types";
+import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -62,6 +63,20 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (!Number.isNaN(pid)) loadCosts(pid);
   }, [pid, loadCosts]);
+
+  const financial = useFinancialStore((s) => s.byProject[pid] ?? null);
+  const refreshFinancial = useFinancialStore((s) => s.refresh);
+
+  useEffect(() => {
+    if (!Number.isNaN(pid)) refreshFinancial(pid);
+  }, [pid, refreshFinancial]);
+
+  // I-2 fix: navigate away when current company no longer matches the open project
+  useEffect(() => {
+    if (project && currentCompanyId != null && project.company_id !== currentCompanyId) {
+      navigate("/projects", { replace: true });
+    }
+  }, [project, currentCompanyId, navigate]);
 
   if (!project) return null;
 
@@ -102,7 +117,7 @@ export default function ProjectDetailPage() {
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
-          <OverviewPanel project={project} />
+          <FinancialPanel project={project} financial={financial} />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-4">
@@ -121,32 +136,108 @@ export default function ProjectDetailPage() {
   );
 }
 
-function OverviewPanel({ project }: { project: Project }) {
+function FinancialPanel({
+  project,
+  financial,
+}: {
+  project: Project;
+  financial: ProjectFinancialSummary | null;
+}) {
+  const { t } = useTranslation();
+  const formatRate = (r: number) => `${(r * 100).toFixed(2)}%`;
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <Card>
-        <CardHeader><CardTitle className="text-sm">合同总价</CardTitle></CardHeader>
-        <CardContent className="text-2xl font-semibold">
-          {formatCNY(project.contract_amount_cents)}
-          <div className="text-xs text-muted-foreground mt-1">
-            {project.contract_amount_is_tax_inclusive ? "含税" : "不含税"} · 税率 {(project.tax_rate * 100).toFixed(2)}%
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle className="text-sm">客户</CardTitle></CardHeader>
-        <CardContent>{project.client_name ?? "—"}</CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle className="text-sm">开始日期</CardTitle></CardHeader>
-        <CardContent>{project.start_date ?? "—"}</CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle className="text-sm">结束日期</CardTitle></CardHeader>
-        <CardContent>{project.end_date ?? "—"}</CardContent>
-      </Card>
+    <div className="space-y-4">
+      {/* basic project info */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardHeader><CardTitle className="text-sm">客户</CardTitle></CardHeader>
+          <CardContent>{project.client_name ?? "—"}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">起止日期</CardTitle></CardHeader>
+          <CardContent>
+            {project.start_date ?? "—"} ~ {project.end_date ?? "—"}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* revenue / tax */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.revenueInclusive")}</CardTitle></CardHeader>
+          <CardContent className="text-xl font-semibold">
+            {financial ? formatCNY(financial.revenue_tax_inclusive_cents) : "—"}
+            <div className="text-xs text-muted-foreground mt-1">
+              税率 {(project.tax_rate * 100).toFixed(2)}% · {project.contract_amount_is_tax_inclusive ? "含税合同" : "不含税合同"}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.revenueExclusive")}</CardTitle></CardHeader>
+          <CardContent className="text-xl font-semibold">
+            {financial ? formatCNY(financial.revenue_tax_exclusive_cents) : "—"}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.tax")}</CardTitle></CardHeader>
+          <CardContent className="text-xl font-semibold">
+            {financial ? formatCNY(financial.tax_amount_cents) : "—"}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* costs */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.generalCost")}</CardTitle></CardHeader>
+          <CardContent className="text-xl font-semibold">
+            {financial ? formatCNY(financial.general_cost_cents) : "—"}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.laborCost")}</CardTitle></CardHeader>
+          <CardContent className="text-xl font-semibold">
+            {financial ? formatCNY(financial.labor_cost_cents) : "—"}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.totalCost")}</CardTitle></CardHeader>
+          <CardContent className="text-xl font-semibold">
+            {financial ? formatCNY(financial.total_cost_cents) : "—"}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* profit & collection */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="border-primary">
+          <CardHeader><CardTitle className="text-sm">{t("financial.grossProfit")}</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {financial ? formatCNY(financial.gross_profit_cents) : "—"}
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {t("financial.profitRate")}：{financial ? formatRate(financial.profit_rate) : "—"}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.collectionRate")}</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {financial ? formatRate(financial.collection_rate) : "—"}
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {t("financial.actualPayment")}：{financial ? formatCNY(financial.actual_payment_cents) : "—"} /
+              {" "}
+              {t("financial.expectedPayment")}：{financial ? formatCNY(financial.expected_payment_cents) : "—"}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {project.notes && (
-        <Card className="col-span-2">
+        <Card>
           <CardHeader><CardTitle className="text-sm">备注</CardTitle></CardHeader>
           <CardContent className="whitespace-pre-wrap text-sm">{project.notes}</CardContent>
         </Card>
