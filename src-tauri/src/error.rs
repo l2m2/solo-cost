@@ -29,6 +29,12 @@ pub enum AppError {
     #[error("not found: {entity} #{id}")]
     NotFound { entity: &'static str, id: i64 },
 
+    #[error("integrity check failed: {0}")]
+    IntegrityCheckFailed(String),
+
+    #[error("backup failed: {0}")]
+    Backup(String),
+
     #[error("cannot delete: {0}")]
     DeleteBlocked(String),
 
