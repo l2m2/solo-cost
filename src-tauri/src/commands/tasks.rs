@@ -127,11 +127,7 @@ pub(crate) fn create_impl(
     get_impl(conn, id)
 }
 
-pub(crate) fn update_impl(
-    conn: &Connection,
-    id: i64,
-    input: &TaskInput,
-) -> AppResult<Task> {
+pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppResult<Task> {
     validate(input)?;
     let n = conn.execute(
         "UPDATE tasks SET
@@ -208,19 +204,11 @@ pub fn create_task(
     with_conn(&state, |c| create_impl(c, project_id, &input))
 }
 #[tauri::command]
-pub fn update_task(
-    state: tauri::State<AppState>,
-    id: i64,
-    input: TaskInput,
-) -> AppResult<Task> {
+pub fn update_task(state: tauri::State<AppState>, id: i64, input: TaskInput) -> AppResult<Task> {
     with_conn(&state, |c| update_impl(c, id, &input))
 }
 #[tauri::command]
-pub fn set_task_status(
-    state: tauri::State<AppState>,
-    id: i64,
-    status: String,
-) -> AppResult<Task> {
+pub fn set_task_status(state: tauri::State<AppState>, id: i64, status: String) -> AppResult<Task> {
     with_conn(&state, |c| set_status_impl(c, id, &status))
 }
 #[tauri::command]
@@ -234,13 +222,18 @@ mod tests {
     use crate::commands::auth::setup_at;
     use tempfile::{tempdir, TempDir};
 
-    struct TestDb { conn: Connection, _dir: TempDir }
+    struct TestDb {
+        conn: Connection,
+        _dir: TempDir,
+    }
     impl TestDb {
         fn new() -> Self {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
-            conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
-            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", []).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('Co')", [])
+                .unwrap();
+            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+                .unwrap();
             Self { conn, _dir: dir }
         }
     }
@@ -275,8 +268,10 @@ mod tests {
     #[test]
     fn list_filters_by_status() {
         let db = TestDb::new();
-        let mut a = input("A"); a.status = Some("todo".into());
-        let mut b = input("B"); b.status = Some("done".into());
+        let mut a = input("A");
+        a.status = Some("todo".into());
+        let mut b = input("B");
+        b.status = Some("done".into());
         create_impl(&db.conn, 1, &a).unwrap();
         create_impl(&db.conn, 1, &b).unwrap();
         assert_eq!(list_impl(&db.conn, 1, Some("done")).unwrap().len(), 1);

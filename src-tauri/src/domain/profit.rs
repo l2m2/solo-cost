@@ -206,11 +206,8 @@ mod tests {
             [],
         )
         .unwrap();
-        conn.execute(
-            "INSERT INTO tasks(project_id, title) VALUES(1, 'T')",
-            [],
-        )
-        .unwrap();
+        conn.execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", [])
+            .unwrap();
         conn.execute(
             "INSERT INTO time_logs(task_id, member_id, work_date, hours, daily_cost_snapshot_cents)
              VALUES(1, 1, '2026-06-01', 8.0, 80000),
@@ -270,14 +267,16 @@ mod tests {
     fn financial_summary_tax_exclusive_contract() {
         let db = TestDb::new();
         // project with contract = ¥1,000 不含税
-        db.conn.execute(
-            "UPDATE projects SET
+        db.conn
+            .execute(
+                "UPDATE projects SET
                 contract_amount_cents = 100000,
                 contract_amount_is_tax_inclusive = 0,
                 tax_rate = 0.13
              WHERE id = 1",
-            [],
-        ).unwrap();
+                [],
+            )
+            .unwrap();
         let s = project_financial_summary(&db.conn, 1).unwrap();
         assert_eq!(s.revenue_tax_exclusive_cents, 100_000);
         // revenue inclusive = 100,000 * 1.13 = 113,000

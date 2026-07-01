@@ -77,7 +77,10 @@ pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<Member> {
         row_to_member,
     )
     .map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "member", id },
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
+            entity: "member",
+            id,
+        },
         other => AppError::Db(other),
     })
 }
@@ -106,11 +109,7 @@ pub(crate) fn create_impl(
     get_impl(conn, id)
 }
 
-pub(crate) fn update_impl(
-    conn: &Connection,
-    id: i64,
-    input: &MemberInput,
-) -> AppResult<Member> {
+pub(crate) fn update_impl(conn: &Connection, id: i64, input: &MemberInput) -> AppResult<Member> {
     validate(input)?;
     let n = conn.execute(
         "UPDATE members SET
@@ -133,7 +132,10 @@ pub(crate) fn update_impl(
         ],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "member", id });
+        return Err(AppError::NotFound {
+            entity: "member",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -145,7 +147,10 @@ pub(crate) fn set_active_impl(conn: &Connection, id: i64, is_active: bool) -> Ap
         rusqlite::params![is_active as i64, id],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "member", id });
+        return Err(AppError::NotFound {
+            entity: "member",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -263,8 +268,12 @@ mod tests {
         let db = TestDb::new();
         let m = create_impl(&db.conn, 1, &input("M")).unwrap();
         // create project + task + time_log referencing this member
-        db.conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", []).unwrap();
-        db.conn.execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", []).unwrap();
+        db.conn
+            .execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+            .unwrap();
+        db.conn
+            .execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", [])
+            .unwrap();
         db.conn.execute(
             "INSERT INTO time_logs(task_id, member_id, work_date, hours, daily_cost_snapshot_cents)
              VALUES(1, ?1, '2026-06-01', 8.0, 80000)",

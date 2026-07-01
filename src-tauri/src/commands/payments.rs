@@ -44,7 +44,9 @@ fn row_to_payment(row: &rusqlite::Row) -> rusqlite::Result<ContractPayment> {
 fn validate(input: &PaymentInput) -> AppResult<()> {
     let name = input.name.trim();
     if name.is_empty() || name.chars().count() > 60 {
-        return Err(AppError::Validation("收款节点名长度必须在 1–60 之间".into()));
+        return Err(AppError::Validation(
+            "收款节点名长度必须在 1–60 之间".into(),
+        ));
     }
     if input.expected_amount_cents < 0 {
         return Err(AppError::Validation("预期金额不能为负".into()));
@@ -78,7 +80,10 @@ pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<ContractPayment>
         row_to_payment,
     )
     .map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "contract_payment", id },
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
+            entity: "contract_payment",
+            id,
+        },
         other => AppError::Db(other),
     })
 }
@@ -140,7 +145,10 @@ pub(crate) fn update_impl(
         ],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "contract_payment", id });
+        return Err(AppError::NotFound {
+            entity: "contract_payment",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -165,7 +173,10 @@ pub(crate) fn mark_received_impl(
         rusqlite::params![actual_amount_cents, actual_received_at.trim(), id],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "contract_payment", id });
+        return Err(AppError::NotFound {
+            entity: "contract_payment",
+            id,
+        });
     }
     get_impl(conn, id)
 }
@@ -217,7 +228,9 @@ pub fn mark_payment_received(
     actual_amount_cents: i64,
     actual_received_at: String,
 ) -> AppResult<ContractPayment> {
-    with_conn(&state, |c| mark_received_impl(c, id, actual_amount_cents, &actual_received_at))
+    with_conn(&state, |c| {
+        mark_received_impl(c, id, actual_amount_cents, &actual_received_at)
+    })
 }
 #[tauri::command]
 pub fn delete_payment(state: tauri::State<AppState>, id: i64) -> AppResult<()> {
@@ -230,13 +243,18 @@ mod tests {
     use crate::commands::auth::setup_at;
     use tempfile::{tempdir, TempDir};
 
-    struct TestDb { conn: Connection, _dir: TempDir }
+    struct TestDb {
+        conn: Connection,
+        _dir: TempDir,
+    }
     impl TestDb {
         fn new() -> Self {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
-            conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
-            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", []).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('Co')", [])
+                .unwrap();
+            conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+                .unwrap();
             Self { conn, _dir: dir }
         }
     }

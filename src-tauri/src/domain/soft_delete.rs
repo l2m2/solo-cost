@@ -171,8 +171,8 @@ pub fn restore_task(conn: &Connection, id: i64) -> AppResult<()> {
         return Err(AppError::DeleteBlocked("项目已删除，请先恢复项目".into()));
     }
     let tx = conn.unchecked_transaction()?;
-    let ts: Option<String> = tx
-        .query_row("SELECT deleted_at FROM tasks WHERE id = ?1", [id], |r| {
+    let ts: Option<String> =
+        tx.query_row("SELECT deleted_at FROM tasks WHERE id = ?1", [id], |r| {
             r.get(0)
         })?;
     let ts = match ts {
@@ -272,10 +272,7 @@ pub fn restore_time_log(conn: &Connection, id: i64) -> AppResult<()> {
     if task_deleted_at.is_some() {
         return Err(AppError::DeleteBlocked("任务已删除，请先恢复任务".into()));
     }
-    conn.execute(
-        "UPDATE time_logs SET deleted_at = NULL WHERE id = ?1",
-        [id],
-    )?;
+    conn.execute("UPDATE time_logs SET deleted_at = NULL WHERE id = ?1", [id])?;
     Ok(())
 }
 
@@ -297,7 +294,10 @@ pub fn soft_delete_member(conn: &Connection, id: i64) -> AppResult<()> {
         rusqlite::params![ts, id],
     )?;
     if n == 0 {
-        return Err(AppError::NotFound { entity: "member", id });
+        return Err(AppError::NotFound {
+            entity: "member",
+            id,
+        });
     }
     Ok(())
 }

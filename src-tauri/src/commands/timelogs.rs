@@ -235,7 +235,8 @@ mod tests {
         fn new() -> Self {
             let dir = tempdir().unwrap();
             let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
-            conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+            conn.execute("INSERT INTO companies(name) VALUES('Co')", [])
+                .unwrap();
             conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
                 .unwrap();
             conn.execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", [])
