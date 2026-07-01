@@ -93,7 +93,7 @@ export interface ProjectCostSummary {
 
 export interface TrashItem {
   id: number;
-  entity_type: "project" | "cost_entry";
+  entity_type: "project" | "cost_entry" | "task" | "contract_payment" | "time_log";
   name: string;
   deleted_at: string;
   project_id: number | null;

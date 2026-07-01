@@ -8,10 +8,10 @@ interface Props {
 }
 
 export function HoursInput({ value, onChange, disabled }: Props) {
-  const [text, setText] = useState(value > 0 ? String(value) : "");
+  const [text, setText] = useState(String(value));
 
   useEffect(() => {
-    setText(value > 0 ? String(value) : "");
+    setText(String(value));
   }, [value]);
 
   const commit = (raw: string) => {
