@@ -125,6 +125,10 @@ pub(crate) fn update_impl(
     input: &PaymentInput,
 ) -> AppResult<ContractPayment> {
     validate(input)?;
+    // Cheap existence check so we return NotFound rather than falling through to a 0-row UPDATE
+    // that would only surface as NotFound after the invalid data was already validated. Guards
+    // the "wrong error type for missing entity" pattern (M2 review F2 carry-over).
+    let _existing = get_impl(conn, id)?;
     let n = conn.execute(
         "UPDATE contract_payments SET
             name = ?1,
@@ -304,5 +308,12 @@ mod tests {
         let p = create_impl(&db.conn, 1, &make("X", 100)).unwrap();
         delete_impl(&db.conn, p.id).unwrap();
         assert!(list_impl(&db.conn, 1).unwrap().is_empty());
+    }
+
+    #[test]
+    fn update_nonexistent_returns_not_found() {
+        let db = TestDb::new();
+        let err = update_impl(&db.conn, 999, &make("X", 100)).unwrap_err();
+        assert!(matches!(err, AppError::NotFound { .. }));
     }
 }

@@ -109,6 +109,20 @@ pub(crate) fn create_impl(
     input: &TaskInput,
 ) -> AppResult<Task> {
     validate(input)?;
+    if let Some(assignee_id) = input.assignee_id {
+        let ok: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM members m
+             JOIN projects p ON p.company_id = m.company_id
+             WHERE p.id = ?1 AND m.id = ?2 AND m.deleted_at IS NULL",
+            [project_id, assignee_id],
+            |r| r.get(0),
+        )?;
+        if ok == 0 {
+            return Err(AppError::Validation(
+                "负责人不属该项目所在公司或已归档/删除".into(),
+            ));
+        }
+    }
     conn.execute(
         "INSERT INTO tasks(project_id, title, description, assignee_id,
                            status, estimated_hours, due_date)
@@ -129,6 +143,30 @@ pub(crate) fn create_impl(
 
 pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppResult<Task> {
     validate(input)?;
+    let project_id: i64 = conn
+        .query_row(
+            "SELECT project_id FROM tasks WHERE id = ?1 AND deleted_at IS NULL",
+            [id],
+            |r| r.get(0),
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "task", id },
+            other => AppError::Db(other),
+        })?;
+    if let Some(assignee_id) = input.assignee_id {
+        let ok: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM members m
+             JOIN projects p ON p.company_id = m.company_id
+             WHERE p.id = ?1 AND m.id = ?2 AND m.deleted_at IS NULL",
+            [project_id, assignee_id],
+            |r| r.get(0),
+        )?;
+        if ok == 0 {
+            return Err(AppError::Validation(
+                "负责人不属该项目所在公司或已归档/删除".into(),
+            ));
+        }
+    }
     let n = conn.execute(
         "UPDATE tasks SET
             title = ?1,
@@ -283,5 +321,38 @@ mod tests {
         let t = create_impl(&db.conn, 1, &input("T")).unwrap();
         let u = set_status_impl(&db.conn, t.id, "in_progress").unwrap();
         assert_eq!(u.status, "in_progress");
+    }
+
+    #[test]
+    fn create_with_cross_company_assignee_rejected() {
+        let db = TestDb::new();
+        db.conn
+            .execute("INSERT INTO companies(name) VALUES('Other')", [])
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO members(company_id, name, daily_cost_cents) VALUES(2, 'Foreign', 60000)",
+                [],
+            )
+            .unwrap();
+        let mut i = input("T");
+        i.assignee_id = Some(1);
+        let err = create_impl(&db.conn, 1, &i).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn create_with_own_company_assignee_ok() {
+        let db = TestDb::new();
+        db.conn
+            .execute(
+                "INSERT INTO members(company_id, name, daily_cost_cents) VALUES(1, 'M', 80000)",
+                [],
+            )
+            .unwrap();
+        let mut i = input("T");
+        i.assignee_id = Some(1);
+        let t = create_impl(&db.conn, 1, &i).unwrap();
+        assert_eq!(t.assignee_id, Some(1));
     }
 }
