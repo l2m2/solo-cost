@@ -85,5 +85,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 编辑成本录入时补充跨公司科目校验：所选科目必须归属于该项目的公司，与新建时的校验逻辑对齐，消除 M2 遗留安全缺口
 
 ### Milestone
+- **M4 里程碑完工**：数据完整性 + 备份 + 恢复。unlock 后跑 `PRAGMA integrity_check`；启动/手动/明文三类备份；`restore_from_backup` 前先用密码 + integrity 双重验证；数据库损坏时启动阻塞在恢复对话框。同时收尾 M3 遗留 minor：cross-project 归属 / assignee 公司校验 / financial refresh try/finally 保护 / TimeLogEditForm 日期校验 / task 删除 i18n / TaskForm 归档 assignee 兼容。
 - **M3 完工**：成员管理（含归档/有工时则拒删）+ 合同收款节点（预期/实收/回款率）+ 任务（todo/in_progress/done）+ 工时录入（写时锁定日成本快照）+ 完整财务面板（含税/不含税收入、税额、一般+人力成本、毛利润、利润率、回款率）。同时修复 M2 final review I-1（lock 时所有 store reset）与 I-2（切换公司时跳回项目列表）。
 - **M2 完工**：项目 CRUD + 6 状态生命周期 + 成本科目（9 预设 + 自定义）+ 成本录入（按项目 & 科目录入，含按科目汇总）+ 软删除回收站（级联软删、整组恢复、彻底清理）；多公司数据完全隔离
