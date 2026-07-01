@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- 备份基础能力：支持 WAL checkpoint、加密数据库文件复制、自动备份列表查询（仅 auto_* 命名）、超出上限时保留最新 7 份并删除旧备份、明文导出（通过 SQLCipher 内置 `sqlcipher_export`）、完整性检查（PRAGMA integrity_check）、24 小时自动备份判定
+- 新增错误类型：完整性检查失败（IntegrityCheckFailed）与备份操作失败（Backup），错误信息携带具体原因
 - 项目详情「概览」Tab 升级为完整财务面板：展示含税/不含税收入、税额、一般成本、人力成本、总成本、毛利润与利润率、回款率（含实收/预期金额）共 11 项财务指标，以及客户、起止日期、备注基本信息；数据来源于财务 store，加载中显示"—"
 - 成本录入的新增、编辑、删除操作完成后自动刷新财务汇总，财务面板数字实时联动
 - 切换当前公司时，若正在查看其他公司的项目详情，自动跳回项目列表，防止数据错乱（M2 final review I-2 修复）
