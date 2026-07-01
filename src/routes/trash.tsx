@@ -13,6 +13,9 @@ import { useTrashStore } from "@/stores/trash";
 const TYPE_LABEL: Record<string, string> = {
   project: "项目",
   cost_entry: "成本",
+  task: "任务",
+  contract_payment: "收款",
+  time_log: "工时",
 };
 
 export default function TrashPage() {
