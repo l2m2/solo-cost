@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- 解锁（unlock）现在在迁移成功后额外执行 PRAGMA integrity_check；检测到数据损坏时返回 IntegrityCheckFailed 错误，前端可据此弹出恢复对话框引导用户选择备份恢复
 - 备份 Tauri 命令层：新增 5 条命令供前端调用——立即备份（create_backup_now）、备份列表查询（list_backups）、24 小时自动备份检测（maybe_run_auto_backup）、明文导出到指定路径（export_plaintext_backup）、备份状态查询（get_backup_status，返回上次备份时间、备份数量、是否到期）；自动备份文件命名格式 auto_YYYYMMDD_HHmmss.db，rotation 保留最近 7 份
 - 备份基础能力：支持 WAL checkpoint、加密数据库文件复制、自动备份列表查询（仅 auto_* 命名）、超出上限时保留最新 7 份并删除旧备份、明文导出（通过 SQLCipher 内置 `sqlcipher_export`）、完整性检查（PRAGMA integrity_check）、24 小时自动备份判定
 - 新增错误类型：完整性检查失败（IntegrityCheckFailed）与备份操作失败（Backup），错误信息携带具体原因
