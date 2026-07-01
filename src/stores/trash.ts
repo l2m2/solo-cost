@@ -8,6 +8,7 @@ interface S {
   loadFor: (companyId: number) => Promise<void>;
   restore: (entityType: string, id: number, companyId: number) => Promise<void>;
   purge: (entityType: string, id: number, companyId: number) => Promise<void>;
+  reset: () => void;
 }
 
 export const useTrashStore = create<S>((set, get) => ({
@@ -24,5 +25,8 @@ export const useTrashStore = create<S>((set, get) => ({
   async purge(entityType, id, companyId) {
     await call<void>("purge_trash_item", { entityType, id });
     await get().loadFor(companyId);
+  },
+  reset() {
+    set({ items: [], loadedForCompany: null });
   },
 }));

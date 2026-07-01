@@ -10,6 +10,7 @@ interface CompanyState {
   setCurrent: (id: number) => Promise<void>;
   create: (input: CompanyInput) => Promise<Company>;
   update: (id: number, input: CompanyInput) => Promise<Company>;
+  reset: () => void;
 }
 
 export const useCompanyStore = create<CompanyState>((set, get) => ({
@@ -42,5 +43,8 @@ export const useCompanyStore = create<CompanyState>((set, get) => ({
     const c = await call<Company>("update_company", { id, input });
     set({ list: get().list.map((x) => (x.id === id ? c : x)) });
     return c;
+  },
+  reset() {
+    set({ list: [], currentId: null, loaded: false });
   },
 }));

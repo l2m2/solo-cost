@@ -9,6 +9,7 @@ interface S {
   create: (companyId: number, name: string) => Promise<void>;
   update: (id: number, name: string) => Promise<void>;
   remove: (id: number) => Promise<void>;
+  reset: () => void;
 }
 
 export const useCategoriesStore = create<S>((set, get) => ({
@@ -35,5 +36,8 @@ export const useCategoriesStore = create<S>((set, get) => ({
   async remove(id) {
     await call<void>("delete_category", { id });
     set({ list: get().list.filter((x) => x.id !== id) });
+  },
+  reset() {
+    set({ list: [], loadedForCompany: null });
   },
 }));

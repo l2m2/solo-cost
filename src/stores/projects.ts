@@ -11,6 +11,7 @@ interface S {
   update: (id: number, input: ProjectInput) => Promise<Project>;
   setStatus: (id: number, status: string) => Promise<void>;
   softDelete: (id: number) => Promise<void>;
+  reset: () => void;
 }
 
 export const useProjectsStore = create<S>((set, get) => ({
@@ -41,5 +42,8 @@ export const useProjectsStore = create<S>((set, get) => ({
   async softDelete(id) {
     await call<void>("delete_project", { id });
     set({ list: get().list.filter((x) => x.id !== id) });
+  },
+  reset() {
+    set({ list: [], loadedForCompany: null, statusFilter: null });
   },
 }));

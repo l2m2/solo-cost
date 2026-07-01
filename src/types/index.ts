@@ -98,3 +98,107 @@ export interface TrashItem {
   deleted_at: string;
   project_id: number | null;
 }
+
+export interface Member {
+  id: number;
+  company_id: number;
+  name: string;
+  role: string | null;
+  daily_cost_cents: number;
+  effective_from: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemberInput {
+  name: string;
+  role?: string | null;
+  daily_cost_cents?: number | null;
+  effective_from?: string | null;
+  is_active?: boolean | null;
+  notes?: string | null;
+}
+
+export interface ContractPayment {
+  id: number;
+  project_id: number;
+  name: string;
+  expected_amount_cents: number;
+  expected_date: string | null;
+  actual_amount_cents: number | null;
+  actual_received_at: string | null;
+  sort_order: number;
+  notes: string | null;
+}
+
+export interface PaymentInput {
+  name: string;
+  expected_amount_cents: number;
+  expected_date?: string | null;
+  actual_amount_cents?: number | null;
+  actual_received_at?: string | null;
+  notes?: string | null;
+}
+
+export interface Task {
+  id: number;
+  project_id: number;
+  title: string;
+  description: string | null;
+  assignee_id: number | null;
+  status: string;
+  estimated_hours: number | null;
+  due_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskInput {
+  title: string;
+  description?: string | null;
+  assignee_id?: number | null;
+  status?: string | null;
+  estimated_hours?: number | null;
+  due_date?: string | null;
+}
+
+export interface TimeLog {
+  id: number;
+  task_id: number;
+  member_id: number;
+  work_date: string;
+  hours: number;
+  daily_cost_snapshot_cents: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface TimeLogInput {
+  task_id: number;
+  member_id: number;
+  work_date: string;
+  hours: number;
+  notes?: string | null;
+}
+
+export interface TimeLogUpdateInput {
+  work_date: string;
+  hours: number;
+  notes?: string | null;
+}
+
+export interface ProjectFinancialSummary {
+  revenue_tax_inclusive_cents: number;
+  revenue_tax_exclusive_cents: number;
+  tax_amount_cents: number;
+  general_cost_cents: number;
+  labor_cost_cents: number;
+  total_cost_cents: number;
+  gross_profit_cents: number;
+  profit_rate: number;
+  expected_payment_cents: number;
+  actual_payment_cents: number;
+  collection_rate: number;
+}

@@ -9,6 +9,7 @@ interface S {
   create: (projectId: number, input: CostEntryInput) => Promise<void>;
   update: (id: number, input: CostEntryInput, projectId: number) => Promise<void>;
   remove: (id: number, projectId: number) => Promise<void>;
+  reset: () => void;
 }
 
 async function refresh(projectId: number) {
@@ -40,5 +41,8 @@ export const useCostsStore = create<S>((set, get) => ({
   async remove(id, projectId) {
     await call<void>("delete_cost_entry", { id });
     await get().loadFor(projectId);
+  },
+  reset() {
+    set({ entriesByProject: {}, summaryByProject: {} });
   },
 }));

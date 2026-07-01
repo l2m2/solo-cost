@@ -1,5 +1,11 @@
 import { create } from "zustand";
 import { call } from "@/lib/ipc";
+import { useCompanyStore } from "./company";
+import { useCategoriesStore } from "./categories";
+import { useProjectsStore } from "./projects";
+import { useCostsStore } from "./costs";
+import { useTrashStore } from "./trash";
+import { useFinancialStore } from "./financial";
 
 type Status = "unknown" | "uninitialized" | "locked" | "unlocked";
 
@@ -27,6 +33,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   async lock() {
     await call<void>("lock");
+    // reset all entity stores so a re-unlock pulls fresh data
+    useCompanyStore.getState().reset();
+    useCategoriesStore.getState().reset();
+    useProjectsStore.getState().reset();
+    useCostsStore.getState().reset();
+    useTrashStore.getState().reset();
+    useFinancialStore.getState().reset();
     set({ status: "locked" });
   },
 }));
