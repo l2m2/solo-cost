@@ -73,6 +73,11 @@ pub fn run() {
             commands::tasks::update_task,
             commands::tasks::set_task_status,
             commands::tasks::delete_task,
+            commands::timelogs::list_time_logs_by_task,
+            commands::timelogs::list_time_logs_by_project,
+            commands::timelogs::create_time_log,
+            commands::timelogs::update_time_log,
+            commands::timelogs::delete_time_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

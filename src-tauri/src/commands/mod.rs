@@ -6,4 +6,5 @@ pub mod members;
 pub mod payments;
 pub mod projects;
 pub mod tasks;
+pub mod timelogs;
 pub mod trash;
