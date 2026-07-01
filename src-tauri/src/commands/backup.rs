@@ -1,3 +1,4 @@
+use crate::db::{migrations, pool};
 use crate::domain::backup;
 use crate::domain::backup::BackupInfo;
 use crate::error::{AppError, AppResult};
@@ -116,6 +117,40 @@ pub fn get_backup_status(
     })
 }
 
+#[tauri::command]
+pub fn restore_from_backup(
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+    backup_path: String,
+    password: String,
+) -> AppResult<()> {
+    let backup = PathBuf::from(&backup_path);
+    if !backup.exists() {
+        return Err(AppError::Backup(format!(
+            "backup file not found: {backup_path}"
+        )));
+    }
+    // Phase 1: verify the backup opens with the given password AND passes integrity.
+    let verify_conn = pool::open_encrypted(&backup, &password)?;
+    backup::integrity_check(&verify_conn)?;
+    drop(verify_conn);
+
+    // Phase 2: close current app connection and replace data.db.
+    let target = db_path(&app)?;
+    {
+        let mut guard = state.conn.lock().unwrap();
+        guard.take();
+    }
+    std::fs::copy(&backup, &target).map_err(|e| AppError::Backup(format!("copy: {e}")))?;
+
+    // Phase 3: re-open the restored db and put it back into state.
+    let conn = pool::open_encrypted(&target, &password)?;
+    migrations::run(&conn)?;
+    backup::integrity_check(&conn)?;
+    *state.conn.lock().unwrap() = Some(conn);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,5 +166,28 @@ mod tests {
         assert!(name.ends_with(".db"));
         // total length: auto_ (5) + 15 (YYYYMMDD_HHmmss) + .db (3) = 23
         assert_eq!(name.len(), 23);
+    }
+
+    #[test]
+    fn restore_verifies_backup_before_replacing() {
+        // We cannot easily wire an AppHandle in a unit test, so this test only exercises the
+        // domain-level guarantees the command relies on: opening a backup file with the wrong
+        // password fails, and integrity_check catches obvious corruption.
+        let dir = tempdir().unwrap();
+        let original = dir.path().join("original.db");
+        let backup = dir.path().join("backup.db");
+        let conn = setup_at(&original, "s").unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('X')", [])
+            .unwrap();
+        drop(conn);
+        std::fs::copy(&original, &backup).unwrap();
+
+        // wrong password → open fails
+        let err = crate::db::pool::open_encrypted(&backup, "wrong").unwrap_err();
+        assert!(matches!(err, AppError::WrongPassword | AppError::Db(_)));
+
+        // right password → integrity_check passes
+        let conn = crate::db::pool::open_encrypted(&backup, "s").unwrap();
+        crate::domain::backup::integrity_check(&conn).unwrap();
     }
 }

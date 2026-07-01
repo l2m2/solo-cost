@@ -35,6 +35,7 @@ pub fn run() {
             commands::backup::maybe_run_auto_backup,
             commands::backup::export_plaintext_backup,
             commands::backup::get_backup_status,
+            commands::backup::restore_from_backup,
             commands::companies::list_companies,
             commands::companies::get_company,
             commands::companies::create_company,
