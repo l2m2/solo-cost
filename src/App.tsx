@@ -8,6 +8,7 @@ import LoginPage from "@/routes/login";
 import DashboardPage from "@/routes/dashboard";
 import CompaniesPage from "@/routes/companies";
 import CategoriesPage from "@/routes/categories";
+import MembersPage from "@/routes/members";
 import ProjectsListPage from "@/routes/projects/list";
 import ProjectDetailPage from "@/routes/projects/detail";
 import TrashPage from "@/routes/trash";
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="members" element={<MembersPage />} />
             <Route path="companies" element={<CompaniesPage />} />
             <Route path="projects" element={<ProjectsListPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />

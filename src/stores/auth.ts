@@ -6,6 +6,7 @@ import { useProjectsStore } from "./projects";
 import { useCostsStore } from "./costs";
 import { useTrashStore } from "./trash";
 import { useFinancialStore } from "./financial";
+import { useMembersStore } from "./members";
 
 type Status = "unknown" | "uninitialized" | "locked" | "unlocked";
 
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     useCostsStore.getState().reset();
     useTrashStore.getState().reset();
     useFinancialStore.getState().reset();
+    useMembersStore.getState().reset();
     set({ status: "locked" });
   },
 }));
