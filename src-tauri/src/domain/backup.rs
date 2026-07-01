@@ -1,6 +1,3 @@
-// Public API consumed by Task-2 Tauri commands; allow dead-code in non-test builds until then.
-#![cfg_attr(not(test), allow(dead_code))]
-
 use crate::error::{AppError, AppResult};
 use rusqlite::Connection;
 use std::fs;
@@ -143,14 +140,15 @@ pub fn export_plaintext(conn: &Connection, dst: &Path) -> AppResult<()> {
 }
 
 pub fn last_backup_at(conn: &Connection) -> AppResult<Option<String>> {
-    let row: Option<String> = conn
-        .query_row(
-            "SELECT value FROM app_meta WHERE key = 'last_backup_at'",
-            [],
-            |r| r.get(0),
-        )
-        .ok();
-    Ok(row)
+    match conn.query_row(
+        "SELECT value FROM app_meta WHERE key = 'last_backup_at'",
+        [],
+        |r| r.get::<_, String>(0),
+    ) {
+        Ok(v) => Ok(Some(v)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(AppError::Db(e)),
+    }
 }
 
 pub fn should_auto_backup(conn: &Connection, now_iso: &str) -> AppResult<bool> {
