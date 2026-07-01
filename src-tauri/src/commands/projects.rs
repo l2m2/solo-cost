@@ -279,6 +279,16 @@ pub fn delete_project(state: tauri::State<AppState>, id: i64) -> AppResult<()> {
     with_conn(&state, |c| delete_impl(c, id))
 }
 
+#[tauri::command]
+pub fn get_project_financial_summary(
+    state: tauri::State<AppState>,
+    id: i64,
+) -> AppResult<crate::domain::profit::ProjectFinancialSummary> {
+    with_conn(&state, |c| {
+        crate::domain::profit::project_financial_summary(c, id)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

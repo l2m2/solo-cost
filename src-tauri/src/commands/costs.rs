@@ -104,7 +104,20 @@ pub(crate) fn update_impl(
     input: &CostEntryInput,
 ) -> AppResult<CostEntry> {
     validate(input)?;
-    // Note: update does not re-check category↔company match; original create validated this.
+    // verify category belongs to the project's company (defense in depth — M2-T5 originally accepted gap)
+    let ok: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM cost_categories cc
+         JOIN projects p ON p.company_id = cc.company_id
+         JOIN cost_entries ce ON ce.project_id = p.id
+         WHERE ce.id = ?1 AND cc.id = ?2 AND cc.deleted_at IS NULL",
+        [id, input.category_id],
+        |r| r.get(0),
+    )?;
+    if ok == 0 {
+        return Err(AppError::Validation(
+            "科目与项目公司不匹配或科目不存在".into(),
+        ));
+    }
     let n = conn.execute(
         "UPDATE cost_entries SET
             category_id = ?1,
@@ -285,5 +298,23 @@ mod tests {
             )
             .unwrap();
         assert!(dt.is_some());
+    }
+
+    #[test]
+    fn update_cross_company_category_rejected() {
+        let db = TestDb::new();
+        let e = create_impl(&db.conn, 1, &ce(50)).unwrap();
+        // make a foreign company & category
+        db.conn
+            .execute("INSERT INTO companies(name) VALUES('Other')", [])
+            .unwrap();
+        db.conn.execute(
+            "INSERT INTO cost_categories(company_id, name, is_system, sort_order) VALUES(2, 'X', 0, 0)",
+            [],
+        ).unwrap();
+        let mut bad = ce(50);
+        bad.category_id = 2;
+        let err = update_impl(&db.conn, e.id, &bad).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
     }
 }

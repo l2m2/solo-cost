@@ -47,6 +47,7 @@ pub fn run() {
             commands::projects::update_project,
             commands::projects::set_project_status,
             commands::projects::delete_project,
+            commands::projects::get_project_financial_summary,
             commands::costs::list_cost_entries,
             commands::costs::create_cost_entry,
             commands::costs::update_cost_entry,
