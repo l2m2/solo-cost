@@ -115,7 +115,7 @@
     },
     "preview": {
       "summary": "共 {{total}} 行；已在库 {{already}}，已取消 {{cancelled}}",
-      "willImport": "将导入 {{n}} 个任务（其中 {{logs}} 个带工时）",
+      "willImport": "将导入约 {{n}} 个任务（工时数以导入报告为准）",
       "willSkip": "跳过 {{n}} 个（已存在 {{already}} / 已取消 {{cancelled}} / 成员选择跳过 {{member}}）"
     },
     "member": {

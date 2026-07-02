@@ -278,7 +278,7 @@ export default function ZentaoImportDialog({
         {step === 4 && preview && (
           <Card>
             <CardContent className="p-6 space-y-2 text-sm">
-              <div>{t("zentaoImport.preview.willImport", { n: willImportCount, logs: willImportCount })}</div>
+              <div>{t("zentaoImport.preview.willImport", { n: willImportCount })}</div>
               <div className="text-muted-foreground">
                 {t("zentaoImport.preview.willSkip", {
                   n: preview.pre_skip.cancelled + preview.pre_skip.already_imported
