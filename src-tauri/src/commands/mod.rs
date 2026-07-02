@@ -10,3 +10,4 @@ pub mod projects;
 pub mod tasks;
 pub mod timelogs;
 pub mod trash;
+pub mod zentao_import;
