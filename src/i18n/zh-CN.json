@@ -102,6 +102,50 @@
     "nameRequired": "模块名必填",
     "nameTooLong": "模块名不能超过 40 字符"
   },
+  "zentaoImport": {
+    "title": "从禅道 CSV 导入",
+    "chooseFile": "选择 CSV 文件",
+    "reselect": "重选文件",
+    "step": {
+      "file": "选文件",
+      "members": "成员",
+      "modules": "模块",
+      "confirm": "确认",
+      "report": "报告"
+    },
+    "preview": {
+      "summary": "共 {{total}} 行；已在库 {{already}}，已取消 {{cancelled}}",
+      "willImport": "将导入 {{n}} 个任务（其中 {{logs}} 个带工时）",
+      "willSkip": "跳过 {{n}} 个（已存在 {{already}} / 已取消 {{cancelled}} / 成员选择跳过 {{member}}）"
+    },
+    "member": {
+      "column": "CSV 名字",
+      "mapTo": "映射到",
+      "unassigned": "未指派",
+      "skipRow": "跳过含此人的行"
+    },
+    "module": {
+      "column": "CSV 模块名",
+      "mapTo": "映射到",
+      "createWith": "新建「{{name}}」",
+      "unassigned": "未分类"
+    },
+    "report": {
+      "title": "导入完成",
+      "imported": "已导入 {{tasks}} 个任务、{{logs}} 条工时",
+      "skipped": "跳过 {{n}} 个（已存在 {{already}} / 已取消 {{cancelled}} / 成员跳过 {{member}}）",
+      "failedTitle": "失败 {{n}} 条：",
+      "failedItem": "[第 {{row}} 行] {{ref}}: {{err}}"
+    },
+    "action": {
+      "start": "开始导入",
+      "importing": "导入中…"
+    },
+    "error": {
+      "parseFailed": "CSV 解析失败：{{msg}}",
+      "executeFailed": "导入执行失败：{{msg}}"
+    }
+  },
   "cost": {
     "title": "成本",
     "add": "录入一笔",
@@ -247,7 +291,10 @@
     "confirm": "确定",
     "save": "保存",
     "close": "关闭",
-    "error": "操作失败：{{msg}}"
+    "error": "操作失败：{{msg}}",
+    "next": "下一步",
+    "back": "上一步",
+    "done": "完成"
   },
   "settings": {
     "title": "设置",

@@ -160,6 +160,7 @@ export interface Task {
   estimated_hours: number | null;
   due_date: string | null;
   module_id: number | null;
+  external_ref: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -172,6 +173,7 @@ export interface TaskInput {
   estimated_hours?: number | null;
   due_date?: string | null;
   module_id?: number | null;
+  external_ref?: string | null;
 }
 
 export interface TimeLog {
@@ -246,4 +248,32 @@ export interface ModuleLaborStat {
   module_name: string | null;
   hours: number;
   cost_cents: number;
+}
+
+export interface ImportPreview {
+  total_rows: number;
+  member_names: string[];
+  module_names: string[];
+  pre_skip: { cancelled: number; already_imported: number };
+}
+
+export type MemberChoice =
+  | { kind: "use_member"; member_id: number }
+  | { kind: "unassigned" }
+  | { kind: "skip_row" };
+
+export type ModuleChoice =
+  | { kind: "use_module"; module_id: number }
+  | { kind: "create_with_name"; name: string }
+  | { kind: "unassigned" };
+
+export interface ImportReport {
+  imported_tasks: number;
+  imported_timelogs: number;
+  skipped: {
+    cancelled: number;
+    already_imported: number;
+    member_skipped: number;
+  };
+  failed: { row_no: number; zentao_id: string; error: string }[];
 }
