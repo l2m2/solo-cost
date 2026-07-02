@@ -14,8 +14,12 @@ pub fn labor_by_module(
     conn: &Connection,
     project_id: i64,
 ) -> AppResult<Vec<ModuleLaborStat>> {
+    // Coalesce tasks pointing at soft-deleted modules into the "unassigned"
+    // bucket: the LEFT JOIN yields m.id = NULL for both truly-unassigned tasks
+    // and orphans, so grouping by t.module_id alone would split them into two
+    // rows both rendered as "未分类". The CASE folds orphans into NULL.
     let mut stmt = conn.prepare(
-        "SELECT t.module_id,
+        "SELECT CASE WHEN m.id IS NOT NULL THEN t.module_id ELSE NULL END AS module_id,
                 m.name AS module_name,
                 COALESCE(SUM(tl.hours), 0.0) AS hours,
                 COALESCE(CAST(SUM(ROUND(tl.hours / 8.0 * tl.daily_cost_snapshot_cents)) AS INTEGER), 0) AS cost
@@ -25,7 +29,7 @@ pub fn labor_by_module(
          LEFT JOIN time_logs tl
                 ON tl.task_id = t.id AND tl.deleted_at IS NULL
          WHERE t.project_id = ?1 AND t.deleted_at IS NULL
-         GROUP BY t.module_id, m.name
+         GROUP BY CASE WHEN m.id IS NOT NULL THEN t.module_id ELSE NULL END, m.name
          HAVING hours > 0
          ORDER BY m.sort_order ASC NULLS LAST, m.id ASC",
     )?;
@@ -148,6 +152,26 @@ mod tests {
         let out = labor_by_module(&db.conn, 1).unwrap();
         // t1 has 0h left (its only log was deleted), t2 fully deleted → nothing above HAVING hours > 0
         assert!(out.is_empty());
+    }
+
+    #[test]
+    fn labor_by_module_collapses_orphans_with_unassigned() {
+        // Regression for I1: tasks that still point at a soft-deleted module
+        // must collapse into the single "未分类" row, not spawn a second one.
+        let db = TestDb::new();
+        db.conn.execute("INSERT INTO modules(project_id, name, sort_order) VALUES(1, '前端', 0)", []).unwrap();
+        // orphan: task holds module_id=1 but the module is soft-deleted below
+        let orphan = add_task(&db.conn, Some(1));
+        let na = add_task(&db.conn, None);
+        add_log(&db.conn, orphan, 4.0);
+        add_log(&db.conn, na, 4.0);
+        db.conn.execute("UPDATE modules SET deleted_at = datetime('now') WHERE id = 1", []).unwrap();
+        let out = labor_by_module(&db.conn, 1).unwrap();
+        assert_eq!(out.len(), 1, "orphan + unassigned should be one row, got {out:?}");
+        assert_eq!(out[0].module_id, None);
+        assert_eq!(out[0].module_name, None);
+        assert!((out[0].hours - 8.0).abs() < 1e-9);
+        assert_eq!(out[0].cost_cents, 80_000);
     }
 
     #[test]
