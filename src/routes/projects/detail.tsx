@@ -35,6 +35,7 @@ import { useFinancialStore } from "@/stores/financial";
 import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
+import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
 
 export default function ProjectDetailPage() {
@@ -692,6 +693,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   const modules = modulesByProject[projectId] ?? [];
   const [moduleFilter, setModuleFilter] = useState<string>("__all"); // __all | __unassigned | <id>
   const [openManageModules, setOpenManageModules] = useState(false);
+  const [openZentaoImport, setOpenZentaoImport] = useState(false);
   const tasks = byProject[projectId] ?? [];
   const visibleTasks = tasks.filter((tk) => {
     if (moduleFilter === "__all") return true;
@@ -743,6 +745,9 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
           </Select>
           <Button variant="outline" onClick={() => setOpenManageModules(true)}>
             {t("module.manage")}
+          </Button>
+          <Button variant="outline" onClick={() => setOpenZentaoImport(true)}>
+            {t("zentaoImport.title")}
           </Button>
         </div>
         <Dialog open={openNew} onOpenChange={setOpenNew}>
@@ -883,6 +888,13 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
           />
         </DialogContent>
       </Dialog>
+
+      <ZentaoImportDialog
+        projectId={projectId}
+        companyId={companyId}
+        open={openZentaoImport}
+        onOpenChange={setOpenZentaoImport}
+      />
     </div>
   );
 }
