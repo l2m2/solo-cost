@@ -443,6 +443,24 @@ mod tests {
             .unwrap();
         let s = project_financial_summary(&db.conn, 1).unwrap();
         assert_eq!(s.commission_cents, 0);
+        assert_eq!(s.total_cost_cents, 210_000);
+    }
+
+    #[test]
+    fn commission_fixed_amount_null_defaults_zero() {
+        let db = TestDb::new();
+        make_full_fixture(&db.conn);
+        db.conn
+            .execute(
+                "UPDATE projects SET commission_mode='fixed',
+                    commission_amount_cents=NULL, commission_settled=1
+                 WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let s = project_financial_summary(&db.conn, 1).unwrap();
+        assert_eq!(s.commission_cents, 0);
+        assert_eq!(s.total_cost_cents, 210_000);
     }
 
     #[test]
