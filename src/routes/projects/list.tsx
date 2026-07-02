@@ -13,6 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MoneyInput } from "@/components/forms/MoneyInput";
 import { formatCNY } from "@/lib/money";
 import { STATUS_OPTIONS, statusBadgeClass, statusLabel } from "@/lib/status";
@@ -160,6 +161,12 @@ function ProjectForm({
   const [startDate, setStartDate] = useState(initial?.start_date ?? "");
   const [endDate, setEndDate] = useState(initial?.end_date ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [commissionMode, setCommissionMode] = useState(initial?.commission_mode ?? "none");
+  const [commissionRate, setCommissionRate] = useState(
+    initial?.commission_rate != null ? String(initial.commission_rate) : ""
+  );
+  const [commissionAmount, setCommissionAmount] = useState(initial?.commission_amount_cents ?? 0);
+  const [commissionSettled, setCommissionSettled] = useState(initial?.commission_settled ?? false);
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
@@ -176,6 +183,15 @@ function ProjectForm({
         start_date: startDate || null,
         end_date: endDate || null,
         notes: notes.trim() || null,
+        commission_mode: commissionMode,
+        commission_rate:
+          commissionMode === "rate"
+            ? (commissionRate === "" ? 0 : Number(commissionRate))
+            : null,
+        commission_amount_cents:
+          commissionMode === "fixed" ? commissionAmount : null,
+        commission_settled:
+          commissionMode === "fixed" ? commissionSettled : false,
       });
     } finally { setBusy(false); }
   };
@@ -232,6 +248,51 @@ function ProjectForm({
           <Label>{t("project.endDate")}</Label>
           <Input type="date" value={endDate ?? ""} onChange={(e) => setEndDate(e.target.value)} />
         </div>
+      </div>
+      <div className="space-y-2 rounded border p-3">
+        <div className="text-sm font-medium">{t("project.commissionSection")}</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>{t("project.commissionMode")}</Label>
+            <Select value={commissionMode} onValueChange={setCommissionMode}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("commissionMode.none")}</SelectItem>
+                <SelectItem value="rate">{t("commissionMode.rate")}</SelectItem>
+                <SelectItem value="fixed">{t("commissionMode.fixed")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {commissionMode === "rate" && (
+            <div className="space-y-1">
+              <Label>{t("project.commissionRate")}</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                value={commissionRate}
+                onChange={(e) => setCommissionRate(e.target.value)}
+                placeholder="0.05"
+              />
+            </div>
+          )}
+          {commissionMode === "fixed" && (
+            <div className="space-y-1">
+              <Label>{t("project.commissionAmount")}</Label>
+              <MoneyInput value={commissionAmount} onChange={setCommissionAmount} />
+            </div>
+          )}
+        </div>
+        {commissionMode === "fixed" && (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={commissionSettled}
+              onCheckedChange={(v) => setCommissionSettled(!!v)}
+            />
+            {t("project.commissionSettled")}
+          </label>
+        )}
       </div>
       <div className="space-y-1">
         <Label>{t("project.notes")}</Label>
