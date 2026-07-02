@@ -4,6 +4,7 @@ pub mod categories;
 pub mod companies;
 pub mod costs;
 pub mod members;
+pub mod modules;
 pub mod payments;
 pub mod projects;
 pub mod tasks;

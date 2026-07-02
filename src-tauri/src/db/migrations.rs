@@ -15,6 +15,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0004_projects_commission",
         include_str!("../../migrations/0004_projects_commission.sql"),
     ),
+    (
+        "0005_modules",
+        include_str!("../../migrations/0005_modules.sql"),
+    ),
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -86,7 +90,7 @@ mod tests {
         assert_eq!(n, 1);
 
         let v = current_version(&conn).unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
     }
 
     #[test]
@@ -94,6 +98,6 @@ mod tests {
         let conn = open_in_memory_for_test("p").unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap(); // second run should not error
-        assert_eq!(current_version(&conn).unwrap(), 4);
+        assert_eq!(current_version(&conn).unwrap(), 5);
     }
 }
