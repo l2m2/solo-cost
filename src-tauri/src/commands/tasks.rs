@@ -18,6 +18,7 @@ pub struct Task {
     pub estimated_hours: Option<f64>,
     pub due_date: Option<String>,
     pub module_id: Option<i64>,
+    pub external_ref: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -31,6 +32,7 @@ pub struct TaskInput {
     pub estimated_hours: Option<f64>,
     pub due_date: Option<String>,
     pub module_id: Option<i64>,
+    pub external_ref: Option<String>,
 }
 
 fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
@@ -44,6 +46,7 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         estimated_hours: row.get("estimated_hours")?,
         due_date: row.get("due_date")?,
         module_id: row.get("module_id")?,
+        external_ref: row.get("external_ref")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -149,8 +152,8 @@ pub(crate) fn create_impl(
     }
     conn.execute(
         "INSERT INTO tasks(project_id, title, description, assignee_id,
-                           status, estimated_hours, due_date, module_id)
-         VALUES(?1, ?2, ?3, ?4, COALESCE(?5, 'todo'), ?6, ?7, ?8)",
+                           status, estimated_hours, due_date, module_id, external_ref)
+         VALUES(?1, ?2, ?3, ?4, COALESCE(?5, 'todo'), ?6, ?7, ?8, ?9)",
         rusqlite::params![
             project_id,
             input.title.trim(),
@@ -160,6 +163,7 @@ pub(crate) fn create_impl(
             input.estimated_hours,
             input.due_date.as_deref(),
             input.module_id,
+            input.external_ref.as_deref(),
         ],
     )?;
     let id = conn.last_insert_rowid();
@@ -313,6 +317,7 @@ mod tests {
             estimated_hours: None,
             due_date: None,
             module_id: None,
+            external_ref: None,
         }
     }
 
@@ -428,5 +433,40 @@ mod tests {
         u.module_id = None;
         let updated = update_impl(&db.conn, t.id, &u).unwrap();
         assert_eq!(updated.module_id, None);
+    }
+
+    #[test]
+    fn create_task_persists_external_ref() {
+        let db = TestDb::new();
+        let mut i = input("T");
+        i.external_ref = Some("zentao:368".into());
+        let t = create_impl(&db.conn, 1, &i).unwrap();
+        assert_eq!(t.external_ref.as_deref(), Some("zentao:368"));
+    }
+
+    #[test]
+    fn external_ref_unique_index_rejects_duplicate_in_same_project() {
+        let db = TestDb::new();
+        let mut i = input("T1");
+        i.external_ref = Some("zentao:368".into());
+        create_impl(&db.conn, 1, &i).unwrap();
+        // second insert into same project with same external_ref → SQLite UNIQUE violation
+        let mut j = input("T2");
+        j.external_ref = Some("zentao:368".into());
+        let err = create_impl(&db.conn, 1, &j).unwrap_err();
+        assert!(matches!(err, AppError::Db(_)));
+    }
+
+    #[test]
+    fn external_ref_unique_index_allows_same_id_across_projects() {
+        let db = TestDb::new();
+        db.conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P2')", []).unwrap();
+        let mut i = input("T1");
+        i.external_ref = Some("zentao:368".into());
+        create_impl(&db.conn, 1, &i).unwrap();
+        let mut j = input("T2");
+        j.external_ref = Some("zentao:368".into());
+        // project 2 can hold the same external_ref
+        create_impl(&db.conn, 2, &j).unwrap();
     }
 }
