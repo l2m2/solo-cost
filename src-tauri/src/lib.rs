@@ -79,6 +79,8 @@ pub fn run() {
             commands::modules::update_module,
             commands::modules::delete_module,
             commands::modules::get_module_labor_stats,
+            commands::zentao_import::preview_zentao_csv,
+            commands::zentao_import::execute_zentao_import,
             commands::tasks::list_tasks,
             commands::tasks::get_task,
             commands::tasks::create_task,
