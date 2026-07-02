@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { call } from "@/lib/ipc";
 import type { TimeLog, TimeLogInput, TimeLogUpdateInput } from "@/types";
 import { useFinancialStore } from "./financial";
+import { useModuleStatsStore } from "./moduleStats";
 
 interface S {
   byTask: Record<number, TimeLog[]>;
@@ -23,11 +24,13 @@ export const useTimelogsStore = create<S>((set, get) => ({
     await call<TimeLog>("create_time_log", { input });
     await get().loadFor(input.task_id);
     await useFinancialStore.getState().refresh(projectId);
+    await useModuleStatsStore.getState().refresh(projectId);
   },
   async update(id, input, taskId, projectId) {
     await call<TimeLog>("update_time_log", { id, input });
     await get().loadFor(taskId);
     await useFinancialStore.getState().refresh(projectId);
+    await useModuleStatsStore.getState().refresh(projectId);
   },
   async softDelete(id, taskId, projectId) {
     await call<void>("delete_time_log", { id });
@@ -35,6 +38,7 @@ export const useTimelogsStore = create<S>((set, get) => ({
       await get().loadFor(taskId);
     } finally {
       await useFinancialStore.getState().refresh(projectId);
+      await useModuleStatsStore.getState().refresh(projectId);
     }
   },
   reset() {

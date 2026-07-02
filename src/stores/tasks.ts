@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { call } from "@/lib/ipc";
 import type { Task, TaskInput } from "@/types";
 import { useFinancialStore } from "./financial";
+import { useModuleStatsStore } from "./moduleStats";
 
 interface S {
   byProject: Record<number, Task[]>;
@@ -24,11 +25,13 @@ export const useTasksStore = create<S>((set, get) => ({
   async create(projectId, input) {
     const t = await call<Task>("create_task", { projectId, input });
     await get().loadFor(projectId, get().statusFilter);
+    await useModuleStatsStore.getState().refresh(projectId);
     return t;
   },
   async update(id, input, projectId) {
     const t = await call<Task>("update_task", { id, input });
     await get().loadFor(projectId, get().statusFilter);
+    await useModuleStatsStore.getState().refresh(projectId);
     return t;
   },
   async setStatus(id, status, projectId) {
@@ -42,6 +45,7 @@ export const useTasksStore = create<S>((set, get) => ({
       await get().loadFor(projectId, get().statusFilter);
     } finally {
       await useFinancialStore.getState().refresh(projectId);
+      await useModuleStatsStore.getState().refresh(projectId);
     }
   },
   reset() {
