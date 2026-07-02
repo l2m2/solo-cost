@@ -14,6 +14,8 @@ const ALLOWED_STATUSES: [&str; 6] = [
     "archived",
 ];
 
+const ALLOWED_COMMISSION_MODES: [&str; 3] = ["none", "rate", "fixed"];
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Project {
     pub id: i64,
@@ -28,6 +30,10 @@ pub struct Project {
     pub end_date: Option<String>,
     pub actual_delivered_at: Option<String>,
     pub notes: Option<String>,
+    pub commission_mode: String,
+    pub commission_rate: Option<f64>,
+    pub commission_amount_cents: Option<i64>,
+    pub commission_settled: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -44,6 +50,10 @@ pub struct ProjectInput {
     pub end_date: Option<String>,
     pub actual_delivered_at: Option<String>,
     pub notes: Option<String>,
+    pub commission_mode: Option<String>,
+    pub commission_rate: Option<f64>,
+    pub commission_amount_cents: Option<i64>,
+    pub commission_settled: Option<bool>,
 }
 
 fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
@@ -61,6 +71,10 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         end_date: row.get("end_date")?,
         actual_delivered_at: row.get("actual_delivered_at")?,
         notes: row.get("notes")?,
+        commission_mode: row.get("commission_mode")?,
+        commission_rate: row.get("commission_rate")?,
+        commission_amount_cents: row.get("commission_amount_cents")?,
+        commission_settled: row.get::<_, i64>("commission_settled")? != 0,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -84,6 +98,30 @@ fn validate(input: &ProjectInput) -> AppResult<()> {
     if let Some(amt) = input.contract_amount_cents {
         if amt < 0 {
             return Err(AppError::Validation("合同金额不能为负".into()));
+        }
+    }
+    if let Some(ref m) = input.commission_mode {
+        if !ALLOWED_COMMISSION_MODES.contains(&m.as_str()) {
+            return Err(AppError::Validation(format!("非法提成模式：{m}")));
+        }
+        match m.as_str() {
+            "rate" => {
+                let r = input.commission_rate.unwrap_or(0.0);
+                if !(0.0..=1.0).contains(&r) {
+                    return Err(AppError::Validation(
+                        "提成率必须在 [0, 1] 之间".into(),
+                    ));
+                }
+            }
+            "fixed" => {
+                let a = input.commission_amount_cents.unwrap_or(0);
+                if a < 0 {
+                    return Err(AppError::Validation(
+                        "固定提成金额不能为负".into(),
+                    ));
+                }
+            }
+            _ => {}
         }
     }
     Ok(())
@@ -144,11 +182,13 @@ pub(crate) fn create_impl(
         "INSERT INTO projects(
             company_id, name, client_name, status,
             contract_amount_cents, contract_amount_is_tax_inclusive, tax_rate,
-            start_date, end_date, actual_delivered_at, notes
+            start_date, end_date, actual_delivered_at, notes,
+            commission_mode, commission_rate, commission_amount_cents, commission_settled
          ) VALUES(
             ?1, ?2, ?3, COALESCE(?4, 'pending'),
             COALESCE(?5, 0), COALESCE(?6, 1), COALESCE(?7, 0.06),
-            ?8, ?9, ?10, ?11
+            ?8, ?9, ?10, ?11,
+            COALESCE(?12, 'none'), ?13, ?14, COALESCE(?15, 0)
          )",
         rusqlite::params![
             company_id,
@@ -162,6 +202,10 @@ pub(crate) fn create_impl(
             input.end_date.as_deref(),
             input.actual_delivered_at.as_deref(),
             input.notes.as_deref(),
+            input.commission_mode.as_deref(),
+            input.commission_rate,
+            input.commission_amount_cents,
+            input.commission_settled.map(|b| b as i64),
         ],
     )?;
     let id = conn.last_insert_rowid();
@@ -182,8 +226,12 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &ProjectInput) -> A
             end_date = ?8,
             actual_delivered_at = ?9,
             notes = ?10,
+            commission_mode = COALESCE(?11, commission_mode),
+            commission_rate = ?12,
+            commission_amount_cents = ?13,
+            commission_settled = COALESCE(?14, commission_settled),
             updated_at = datetime('now')
-         WHERE id = ?11 AND deleted_at IS NULL",
+         WHERE id = ?15 AND deleted_at IS NULL",
         rusqlite::params![
             input.name.trim(),
             input.client_name.as_deref(),
@@ -195,6 +243,10 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &ProjectInput) -> A
             input.end_date.as_deref(),
             input.actual_delivered_at.as_deref(),
             input.notes.as_deref(),
+            input.commission_mode.as_deref(),
+            input.commission_rate,
+            input.commission_amount_cents,
+            input.commission_settled.map(|b| b as i64),
             id,
         ],
     )?;
@@ -321,6 +373,10 @@ mod tests {
             end_date: None,
             actual_delivered_at: None,
             notes: None,
+            commission_mode: None,
+            commission_rate: None,
+            commission_amount_cents: None,
+            commission_settled: None,
         }
     }
 
@@ -418,5 +474,58 @@ mod tests {
             )
             .unwrap();
         assert!(entry_del.is_some());
+    }
+
+    #[test]
+    fn create_defaults_commission_mode_none() {
+        let db = TestDb::new();
+        let p = create_impl(&db.conn, 1, &input("P")).unwrap();
+        assert_eq!(p.commission_mode, "none");
+        assert!(p.commission_rate.is_none());
+        assert!(p.commission_amount_cents.is_none());
+        assert!(!p.commission_settled);
+    }
+
+    #[test]
+    fn create_persists_commission_rate() {
+        let db = TestDb::new();
+        let mut i = input("P");
+        i.commission_mode = Some("rate".into());
+        i.commission_rate = Some(0.05);
+        let p = create_impl(&db.conn, 1, &i).unwrap();
+        assert_eq!(p.commission_mode, "rate");
+        assert!((p.commission_rate.unwrap() - 0.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn create_persists_commission_fixed_with_settled() {
+        let db = TestDb::new();
+        let mut i = input("P");
+        i.commission_mode = Some("fixed".into());
+        i.commission_amount_cents = Some(200_000);
+        i.commission_settled = Some(true);
+        let p = create_impl(&db.conn, 1, &i).unwrap();
+        assert_eq!(p.commission_mode, "fixed");
+        assert_eq!(p.commission_amount_cents, Some(200_000));
+        assert!(p.commission_settled);
+    }
+
+    #[test]
+    fn validate_rejects_out_of_range_rate() {
+        let db = TestDb::new();
+        let mut i = input("P");
+        i.commission_mode = Some("rate".into());
+        i.commission_rate = Some(1.5);
+        let err = create_impl(&db.conn, 1, &i).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn validate_rejects_bad_commission_mode() {
+        let db = TestDb::new();
+        let mut i = input("P");
+        i.commission_mode = Some("percentage".into());
+        let err = create_impl(&db.conn, 1, &i).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
     }
 }
