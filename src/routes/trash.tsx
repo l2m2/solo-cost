@@ -39,7 +39,7 @@ export default function TrashPage() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
+            <Table compact>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-20">{t("trash.type")}</TableHead>
@@ -55,11 +55,12 @@ export default function TrashPage() {
                       <Badge variant="outline">{TYPE_LABEL[it.entity_type] ?? it.entity_type}</Badge>
                     </TableCell>
                     <TableCell>{it.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{it.deleted_at}</TableCell>
+                    <TableCell className="text-muted-foreground">{it.deleted_at}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="h-7 px-2"
                         onClick={async () => {
                           try { await restore(it.entity_type, it.id, currentId); }
                           catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
@@ -70,6 +71,7 @@ export default function TrashPage() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="h-7 px-2"
                         onClick={async () => {
                           if (!confirm(t("trash.purgeConfirm"))) return;
                           try { await purge(it.entity_type, it.id, currentId); }

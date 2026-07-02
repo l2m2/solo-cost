@@ -326,7 +326,7 @@ function CostsPanel({ projectId }: { projectId: number }) {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table className="[&_th]:h-9 [&_th]:px-3 [&_td]:py-2 [&_td]:px-3 text-sm">
+            <Table compact>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-28">{t("cost.incurredAt")}</TableHead>
@@ -510,7 +510,7 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("payment.empty")}</CardContent></Card>
       ) : (
         <Card><CardContent className="p-0">
-          <Table>
+          <Table compact>
             <TableHeader>
               <TableRow>
                 <TableHead>{t("payment.name")}</TableHead>
@@ -533,14 +533,15 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
                   </TableCell>
                   <TableCell className="text-right">
                     {!p.actual_received_at && (
-                      <Button size="sm" variant="ghost" onClick={() => setMarking(p)}>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setMarking(p)}>
                         {t("payment.markReceived")}
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>{t("payment.edit")}</Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditing(p)}>{t("payment.edit")}</Button>
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-7 px-2"
                       onClick={async () => {
                         if (!confirm("确认删除该收款节点？")) return;
                         try { await softDelete(p.id, projectId); }
@@ -935,7 +936,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
       {logs.length === 0 ? (
         <div className="p-6 text-sm text-muted-foreground text-center">{t("timelog.empty")}</div>
       ) : (
-        <Table>
+        <Table compact>
           <TableHeader>
             <TableRow>
               <TableHead className="w-28">{t("timelog.workDate")}</TableHead>
@@ -956,12 +957,13 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
                   <TableCell>{findMemberName(l.member_id)}</TableCell>
                   <TableCell className="text-right">{l.hours}</TableCell>
                   <TableCell className="text-right">{formatCNY(cost)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{l.notes ?? ""}</TableCell>
+                  <TableCell className="text-muted-foreground">{l.notes ?? ""}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(l)}>{t("timelog.edit")}</Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditing(l)}>{t("timelog.edit")}</Button>
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="h-7 px-2"
                       onClick={async () => {
                         if (!confirm(t("timelog.deleteConfirm"))) return;
                         try { await softDelete(l.id, task.id, task.project_id); }
