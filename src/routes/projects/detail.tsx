@@ -189,7 +189,9 @@ function FinancialPanel({
       </div>
 
       {/* costs */}
-      <div className="grid grid-cols-3 gap-3">
+      <div
+        className={`grid gap-3 ${project.commission_mode !== "none" ? "grid-cols-4" : "grid-cols-3"}`}
+      >
         <Card>
           <CardHeader><CardTitle className="text-sm">{t("financial.generalCost")}</CardTitle></CardHeader>
           <CardContent className="text-xl font-semibold">
@@ -202,6 +204,28 @@ function FinancialPanel({
             {financial ? formatCNY(financial.labor_cost_cents) : "—"}
           </CardContent>
         </Card>
+        {project.commission_mode !== "none" && (
+          <Card>
+            <CardHeader><CardTitle className="text-sm">{t("financial.commission")}</CardTitle></CardHeader>
+            <CardContent className="text-xl font-semibold">
+              {financial ? formatCNY(financial.commission_cents) : "—"}
+              <div className="text-xs text-muted-foreground mt-1">
+                {project.commission_mode === "rate" &&
+                  t("financial.commissionRateFootnote", {
+                    rate: `${((project.commission_rate ?? 0) * 100).toFixed(2)}%`,
+                  })}
+                {project.commission_mode === "fixed" &&
+                  (project.commission_settled
+                    ? t("financial.commissionFixedSettled", {
+                        amount: formatCNY(project.commission_amount_cents ?? 0),
+                      })
+                    : t("financial.commissionFixedUnsettled", {
+                        amount: formatCNY(project.commission_amount_cents ?? 0),
+                      }))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader><CardTitle className="text-sm">{t("financial.totalCost")}</CardTitle></CardHeader>
           <CardContent className="text-xl font-semibold">
