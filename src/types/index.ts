@@ -159,6 +159,7 @@ export interface Task {
   status: string;
   estimated_hours: number | null;
   due_date: string | null;
+  module_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +171,7 @@ export interface TaskInput {
   status?: string | null;
   estimated_hours?: number | null;
   due_date?: string | null;
+  module_id?: number | null;
 }
 
 export interface TimeLog {
@@ -223,4 +225,25 @@ export interface BackupStatus {
   last_backup_at: string | null;
   auto_count: number;
   should_auto_backup_now: boolean;
+}
+
+export interface Module {
+  id: number;
+  project_id: number;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModuleInput {
+  name: string;
+  sort_order?: number | null;
+}
+
+export interface ModuleLaborStat {
+  module_id: number | null;
+  module_name: string | null;
+  hours: number;
+  cost_cents: number;
 }

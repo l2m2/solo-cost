@@ -86,6 +86,22 @@
     "deleteConfirm": "确认删除项目「{{name}}」？该项目下的成本将一并被软删除，可在回收站恢复。",
     "openDetail": "查看详情"
   },
+  "module": {
+    "title": "模块",
+    "manage": "管理模块",
+    "new": "新增模块",
+    "rename": "重命名",
+    "delete": "删除",
+    "deleteConfirm": "确认删除模块「{{name}}」？",
+    "deleteBlocked": "该模块下还有任务，请先删除或转移",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "filterByModule": "按模块筛选",
+    "allModules": "全部模块",
+    "unassigned": "未分类",
+    "nameRequired": "模块名必填",
+    "nameTooLong": "模块名不能超过 40 字符"
+  },
   "cost": {
     "title": "成本",
     "add": "录入一笔",
@@ -182,6 +198,7 @@
     "filterByStatus": "按状态筛选",
     "allStatuses": "全部状态",
     "unassigned": "未指派",
+    "module": "模块",
     "logsCount": "{{n}} 条工时",
     "deleteConfirm": "确认删除任务「{{title}}」？关联工时将被一并软删，可在回收站恢复。"
   },
@@ -222,7 +239,8 @@
     "profitRate": "利润率",
     "expectedPayment": "预期回款",
     "actualPayment": "实收",
-    "collectionRate": "回款率"
+    "collectionRate": "回款率",
+    "laborByModule": "按模块统计人力成本"
   },
   "common": {
     "cancel": "取消",
