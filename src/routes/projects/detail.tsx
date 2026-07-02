@@ -326,14 +326,14 @@ function CostsPanel({ projectId }: { projectId: number }) {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
+            <Table className="[&_th]:h-9 [&_th]:px-3 [&_td]:py-2 [&_td]:px-3 text-sm">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-28">{t("cost.incurredAt")}</TableHead>
                   <TableHead className="w-32">{t("cost.category")}</TableHead>
                   <TableHead className="text-right w-32">{t("cost.amount")}</TableHead>
                   <TableHead>{t("cost.description")}</TableHead>
-                  <TableHead className="w-32 text-right">操作</TableHead>
+                  <TableHead className="w-40 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -342,12 +342,13 @@ function CostsPanel({ projectId }: { projectId: number }) {
                     <TableCell>{e.incurred_at}</TableCell>
                     <TableCell>{findCatName(e.category_id)}</TableCell>
                     <TableCell className="text-right">{formatCNY(e.amount_cents)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{e.description ?? ""}</TableCell>
+                    <TableCell className="text-muted-foreground">{e.description ?? ""}</TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(e)}>{t("cost.edit")}</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditing(e)}>{t("cost.edit")}</Button>
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="h-7 px-2"
                         onClick={async () => {
                           if (!confirm(t("cost.deleteConfirm"))) return;
                           try { await remove(e.id, projectId); }
