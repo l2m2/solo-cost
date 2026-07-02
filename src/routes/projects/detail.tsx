@@ -33,8 +33,9 @@ import { useMembersStore } from "@/stores/members";
 import { useProjectsStore } from "@/stores/projects";
 import { useFinancialStore } from "@/stores/financial";
 import { useModulesStore } from "@/stores/modules";
+import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
-import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
+import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -702,6 +703,9 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   const [editing, setEditing] = useState<Task | null>(null);
   const [openLogs, setOpenLogs] = useState<Task | null>(null);
 
+  const moduleStats: ModuleLaborStat[] = useModuleStatsStore((s) => s.byProject[projectId] ?? []);
+  const refreshModuleStats = useModuleStatsStore((s) => s.refresh);
+
   useEffect(() => { loadFor(projectId, null); }, [projectId, loadFor]);
   useEffect(() => {
     if (!modulesLoadedFor[projectId]) loadModules(projectId);
@@ -709,6 +713,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   useEffect(() => {
     if (membersLoadedFor !== companyId) loadMembers(companyId);
   }, [companyId, membersLoadedFor, loadMembers]);
+  useEffect(() => { refreshModuleStats(projectId); }, [projectId, refreshModuleStats]);
 
   return (
     <div className="space-y-4">
@@ -746,6 +751,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
             <DialogHeader><DialogTitle>{t("task.create")}</DialogTitle></DialogHeader>
             <TaskForm
               members={members}
+              modules={modules}
               onCancel={() => setOpenNew(false)}
               onSubmit={async (input) => {
                 try { await create(projectId, input); setOpenNew(false); }
@@ -755,6 +761,32 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
           </DialogContent>
         </Dialog>
       </div>
+
+      {moduleStats.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">{t("financial.laborByModule")}</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table compact>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("module.title")}</TableHead>
+                  <TableHead className="text-right w-24">{t("timelog.hours")}</TableHead>
+                  <TableHead className="text-right w-32">人力成本</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {moduleStats.map((s) => (
+                  <TableRow key={s.module_id ?? "unassigned"}>
+                    <TableCell>{s.module_name ?? t("module.unassigned")}</TableCell>
+                    <TableCell className="text-right">{s.hours}</TableCell>
+                    <TableCell className="text-right">{formatCNY(s.cost_cents)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {visibleTasks.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("task.empty")}</CardContent></Card>
@@ -813,6 +845,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
           {editing && (
             <TaskForm
               members={members}
+              modules={modules}
               initial={editing}
               onCancel={() => setEditing(null)}
               onSubmit={async (input) => {
@@ -854,8 +887,9 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   );
 }
 
-function TaskForm({ members, initial, onSubmit, onCancel }: {
+function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
   members: Member[];
+  modules: Module[];
   initial?: Task;
   onSubmit: (input: TaskInput) => Promise<void>;
   onCancel: () => void;
@@ -871,6 +905,9 @@ function TaskForm({ members, initial, onSubmit, onCancel }: {
     initial?.estimated_hours != null ? String(initial.estimated_hours) : ""
   );
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
+  const [moduleId, setModuleId] = useState<string>(
+    initial?.module_id ? String(initial.module_id) : "__none"
+  );
   const [busy, setBusy] = useState(false);
 
   const currentAssignee = initial?.assignee_id
@@ -893,6 +930,7 @@ function TaskForm({ members, initial, onSubmit, onCancel }: {
         status,
         estimated_hours: estHours === "" ? null : Number(estHours),
         due_date: dueDate || null,
+        module_id: moduleId === "__none" ? null : Number(moduleId),
       });
     } finally { setBusy(false); }
   };
@@ -939,6 +977,18 @@ function TaskForm({ members, initial, onSubmit, onCancel }: {
           <Label>{t("task.dueDate")}</Label>
           <Input type="date" value={dueDate ?? ""} onChange={(e) => setDueDate(e.target.value)} />
         </div>
+      </div>
+      <div className="space-y-1">
+        <Label>{t("task.module")}</Label>
+        <Select value={moduleId} onValueChange={setModuleId}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none">{t("module.unassigned")}</SelectItem>
+            {modules.map((m) => (
+              <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="space-y-1">
         <Label>{t("task.description")}</Label>
