@@ -32,8 +32,9 @@ import { useTimelogsStore } from "@/stores/timelogs";
 import { useMembersStore } from "@/stores/members";
 import { useProjectsStore } from "@/stores/projects";
 import { useFinancialStore } from "@/stores/financial";
+import { useModulesStore } from "@/stores/modules";
 import { Badge } from "@/components/ui/badge";
-import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
+import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -677,7 +678,25 @@ function MarkReceivedForm({ initial, onSubmit, onCancel }: {
 function TasksPanel({ projectId, companyId }: { projectId: number; companyId: number }) {
   const { t } = useTranslation();
   const { byProject, statusFilter, loadFor, create, update, setStatus, softDelete } = useTasksStore();
+  const {
+    byProject: modulesByProject,
+    loadedForProject: modulesLoadedFor,
+    loadFor: loadModules,
+    create: createModule,
+    update: updateModule,
+    moveUp: moveModuleUp,
+    moveDown: moveModuleDown,
+    softDelete: softDeleteModule,
+  } = useModulesStore();
+  const modules = modulesByProject[projectId] ?? [];
+  const [moduleFilter, setModuleFilter] = useState<string>("__all"); // __all | __unassigned | <id>
+  const [openManageModules, setOpenManageModules] = useState(false);
   const tasks = byProject[projectId] ?? [];
+  const visibleTasks = tasks.filter((tk) => {
+    if (moduleFilter === "__all") return true;
+    if (moduleFilter === "__unassigned") return tk.module_id == null;
+    return tk.module_id === Number(moduleFilter);
+  });
   const { list: members, loadedForCompany: membersLoadedFor, loadFor: loadMembers } = useMembersStore();
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -685,12 +704,15 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
 
   useEffect(() => { loadFor(projectId, null); }, [projectId, loadFor]);
   useEffect(() => {
+    if (!modulesLoadedFor[projectId]) loadModules(projectId);
+  }, [projectId, modulesLoadedFor, loadModules]);
+  useEffect(() => {
     if (membersLoadedFor !== companyId) loadMembers(companyId);
   }, [companyId, membersLoadedFor, loadMembers]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Select
             value={statusFilter ?? "__all"}
@@ -704,6 +726,19 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={moduleFilter} onValueChange={setModuleFilter}>
+            <SelectTrigger className="w-40"><SelectValue placeholder={t("module.filterByModule")} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">{t("module.allModules")}</SelectItem>
+              <SelectItem value="__unassigned">{t("module.unassigned")}</SelectItem>
+              {modules.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => setOpenManageModules(true)}>
+            {t("module.manage")}
+          </Button>
         </div>
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("task.create")}</Button></DialogTrigger>
@@ -721,11 +756,11 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
         </Dialog>
       </div>
 
-      {tasks.length === 0 ? (
+      {visibleTasks.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("task.empty")}</CardContent></Card>
       ) : (
         <div className="grid gap-2">
-          {tasks.map((tk) => {
+          {visibleTasks.map((tk) => {
             const assignee = members.find((m) => m.id === tk.assignee_id);
             return (
               <Card key={tk.id}>
@@ -795,6 +830,24 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
             <DialogTitle>{openLogs?.title ? `${openLogs.title} - ${t("timelog.title")}` : t("timelog.title")}</DialogTitle>
           </DialogHeader>
           {openLogs && <TimeLogsSection task={openLogs} members={members} />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openManageModules} onOpenChange={setOpenManageModules}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("module.manage")}</DialogTitle>
+          </DialogHeader>
+          <ManageModulesForm
+            projectId={projectId}
+            modules={modules}
+            onClose={() => setOpenManageModules(false)}
+            createModule={createModule}
+            updateModule={updateModule}
+            moveModuleUp={moveModuleUp}
+            moveModuleDown={moveModuleDown}
+            softDeleteModule={softDeleteModule}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -1098,6 +1151,111 @@ function TimeLogEditForm({ initial, onSubmit, onCancel }: {
             finally { setBusy(false); }
           }}
         >{t("timelog.save")}</Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+function ManageModulesForm({
+  projectId,
+  modules,
+  onClose,
+  createModule,
+  updateModule,
+  moveModuleUp,
+  moveModuleDown,
+  softDeleteModule,
+}: {
+  projectId: number;
+  modules: Module[];
+  onClose: () => void;
+  createModule: (projectId: number, input: { name: string }) => Promise<Module>;
+  updateModule: (id: number, input: { name: string }, projectId: number) => Promise<Module>;
+  moveModuleUp: (id: number, projectId: number) => Promise<void>;
+  moveModuleDown: (id: number, projectId: number) => Promise<void>;
+  softDeleteModule: (id: number, projectId: number) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2 max-h-64 overflow-y-auto">
+        {modules.length === 0 ? (
+          <div className="text-sm text-muted-foreground">{t("task.empty")}</div>
+        ) : (
+          modules.map((m, idx) => (
+            <div key={m.id} className="flex items-center gap-2">
+              {editingId === m.id ? (
+                <>
+                  <Input
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (!editingName.trim()) return toast.error(t("module.nameRequired"));
+                      try {
+                        await updateModule(m.id, { name: editingName.trim() }, projectId);
+                        setEditingId(null);
+                      } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                    }}
+                  >{t("common.save")}</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                    {t("common.cancel")}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1">{m.name}</div>
+                  <Button size="sm" variant="ghost" disabled={idx === 0}
+                    onClick={async () => {
+                      try { await moveModuleUp(m.id, projectId); }
+                      catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                    }}
+                  >{t("module.moveUp")}</Button>
+                  <Button size="sm" variant="ghost" disabled={idx === modules.length - 1}
+                    onClick={async () => {
+                      try { await moveModuleDown(m.id, projectId); }
+                      catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                    }}
+                  >{t("module.moveDown")}</Button>
+                  <Button size="sm" variant="ghost"
+                    onClick={() => { setEditingId(m.id); setEditingName(m.name); }}
+                  >{t("module.rename")}</Button>
+                  <Button size="sm" variant="ghost"
+                    onClick={async () => {
+                      if (!confirm(t("module.deleteConfirm", { name: m.name }))) return;
+                      try { await softDeleteModule(m.id, projectId); }
+                      catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                    }}
+                  >{t("module.delete")}</Button>
+                </>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder={t("module.new")}
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+        />
+        <Button
+          onClick={async () => {
+            if (!newName.trim()) return toast.error(t("module.nameRequired"));
+            try { await createModule(projectId, { name: newName.trim() }); setNewName(""); }
+            catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+          }}
+        >{t("module.new")}</Button>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>{t("common.close")}</Button>
       </DialogFooter>
     </div>
   );

@@ -245,6 +245,8 @@
   "common": {
     "cancel": "取消",
     "confirm": "确定",
+    "save": "保存",
+    "close": "关闭",
     "error": "操作失败：{{msg}}"
   },
   "settings": {
