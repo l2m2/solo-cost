@@ -2,6 +2,7 @@ use crate::domain::soft_delete;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use rusqlite::Connection;
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
 const ALLOWED_STATUSES: [&str; 3] = ["todo", "in_progress", "done"];
@@ -16,6 +17,7 @@ pub struct Task {
     pub status: String,
     pub estimated_hours: Option<f64>,
     pub due_date: Option<String>,
+    pub module_id: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -28,6 +30,7 @@ pub struct TaskInput {
     pub status: Option<String>,
     pub estimated_hours: Option<f64>,
     pub due_date: Option<String>,
+    pub module_id: Option<i64>,
 }
 
 fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
@@ -40,6 +43,7 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         status: row.get("status")?,
         estimated_hours: row.get("estimated_hours")?,
         due_date: row.get("due_date")?,
+        module_id: row.get("module_id")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -61,6 +65,25 @@ fn validate(input: &TaskInput) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+fn validate_module_belongs_to_project(
+    conn: &Connection,
+    module_id: Option<i64>,
+    task_project_id: i64,
+) -> AppResult<()> {
+    let Some(mid) = module_id else { return Ok(()); };
+    let pid: Option<i64> = conn
+        .query_row(
+            "SELECT project_id FROM modules WHERE id = ?1 AND deleted_at IS NULL",
+            [mid],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match pid {
+        Some(p) if p == task_project_id => Ok(()),
+        _ => Err(AppError::Validation("模块不属于当前项目".into())),
+    }
 }
 
 pub(crate) fn list_impl(
@@ -109,6 +132,7 @@ pub(crate) fn create_impl(
     input: &TaskInput,
 ) -> AppResult<Task> {
     validate(input)?;
+    validate_module_belongs_to_project(conn, input.module_id, project_id)?;
     if let Some(assignee_id) = input.assignee_id {
         let ok: i64 = conn.query_row(
             "SELECT COUNT(*) FROM members m
@@ -125,8 +149,8 @@ pub(crate) fn create_impl(
     }
     conn.execute(
         "INSERT INTO tasks(project_id, title, description, assignee_id,
-                           status, estimated_hours, due_date)
-         VALUES(?1, ?2, ?3, ?4, COALESCE(?5, 'todo'), ?6, ?7)",
+                           status, estimated_hours, due_date, module_id)
+         VALUES(?1, ?2, ?3, ?4, COALESCE(?5, 'todo'), ?6, ?7, ?8)",
         rusqlite::params![
             project_id,
             input.title.trim(),
@@ -135,6 +159,7 @@ pub(crate) fn create_impl(
             input.status.as_deref(),
             input.estimated_hours,
             input.due_date.as_deref(),
+            input.module_id,
         ],
     )?;
     let id = conn.last_insert_rowid();
@@ -153,6 +178,7 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppR
             rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "task", id },
             other => AppError::Db(other),
         })?;
+    validate_module_belongs_to_project(conn, input.module_id, project_id)?;
     if let Some(assignee_id) = input.assignee_id {
         let ok: i64 = conn.query_row(
             "SELECT COUNT(*) FROM members m
@@ -175,8 +201,9 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppR
             status = COALESCE(?4, status),
             estimated_hours = ?5,
             due_date = ?6,
+            module_id = ?7,
             updated_at = datetime('now')
-         WHERE id = ?7 AND deleted_at IS NULL",
+         WHERE id = ?8 AND deleted_at IS NULL",
         rusqlite::params![
             input.title.trim(),
             input.description.as_deref(),
@@ -184,6 +211,7 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppR
             input.status.as_deref(),
             input.estimated_hours,
             input.due_date.as_deref(),
+            input.module_id,
             id,
         ],
     )?;
@@ -284,6 +312,7 @@ mod tests {
             status: None,
             estimated_hours: None,
             due_date: None,
+            module_id: None,
         }
     }
 
@@ -354,5 +383,50 @@ mod tests {
         i.assignee_id = Some(1);
         let t = create_impl(&db.conn, 1, &i).unwrap();
         assert_eq!(t.assignee_id, Some(1));
+    }
+
+    #[test]
+    fn create_task_with_module_persists_module_id() {
+        let db = TestDb::new();
+        db.conn.execute(
+            "INSERT INTO modules(project_id, name, sort_order) VALUES(1, '前端', 0)",
+            [],
+        ).unwrap();
+        let mut i = input("T");
+        i.module_id = Some(1);
+        let t = create_impl(&db.conn, 1, &i).unwrap();
+        assert_eq!(t.module_id, Some(1));
+    }
+
+    #[test]
+    fn create_task_rejects_module_from_other_project() {
+        let db = TestDb::new();
+        db.conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P2')", []).unwrap();
+        // module belongs to project 2
+        db.conn.execute(
+            "INSERT INTO modules(project_id, name, sort_order) VALUES(2, 'X', 0)",
+            [],
+        ).unwrap();
+        let mut i = input("T");
+        i.module_id = Some(1);
+        // create task under project 1 with module of project 2 → Validation
+        let err = create_impl(&db.conn, 1, &i).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn update_task_can_clear_module_to_null() {
+        let db = TestDb::new();
+        db.conn.execute(
+            "INSERT INTO modules(project_id, name, sort_order) VALUES(1, '前端', 0)",
+            [],
+        ).unwrap();
+        let mut i = input("T");
+        i.module_id = Some(1);
+        let t = create_impl(&db.conn, 1, &i).unwrap();
+        let mut u = input("T");
+        u.module_id = None;
+        let updated = update_impl(&db.conn, t.id, &u).unwrap();
+        assert_eq!(updated.module_id, None);
     }
 }
