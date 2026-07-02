@@ -3,6 +3,11 @@
     "name": "solo-cost",
     "tagline": "项目利润核算"
   },
+  "commissionMode": {
+    "none": "不算",
+    "rate": "按回款比率",
+    "fixed": "固定金额"
+  },
   "setup": {
     "title": "初始化主密码",
     "warning": "主密码用于加密本地数据库，丢失无法找回。请务必记录在密码管理器中。",
@@ -67,6 +72,11 @@
     "endDate": "结束日期",
     "deliveredAt": "实际交付日",
     "notes": "备注",
+    "commissionSection": "销售提成",
+    "commissionMode": "提成模式",
+    "commissionRate": "提成率",
+    "commissionAmount": "提成金额",
+    "commissionSettled": "已入账",
     "empty": "当前公司还没有项目",
     "filterByStatus": "按状态筛选",
     "allStatuses": "全部状态",
@@ -204,6 +214,10 @@
     "generalCost": "一般成本",
     "laborCost": "人力成本",
     "totalCost": "总成本",
+    "commission": "销售提成",
+    "commissionRateFootnote": "已回款 × {{rate}}",
+    "commissionFixedSettled": "固定 {{amount}} · 已入账",
+    "commissionFixedUnsettled": "固定 {{amount}} · 未入账",
     "grossProfit": "毛利润",
     "profitRate": "利润率",
     "expectedPayment": "预期回款",

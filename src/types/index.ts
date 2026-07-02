@@ -44,6 +44,10 @@ export interface Project {
   end_date: string | null;
   actual_delivered_at: string | null;
   notes: string | null;
+  commission_mode: string;
+  commission_rate: number | null;
+  commission_amount_cents: number | null;
+  commission_settled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +63,10 @@ export interface ProjectInput {
   end_date?: string | null;
   actual_delivered_at?: string | null;
   notes?: string | null;
+  commission_mode?: string | null;
+  commission_rate?: number | null;
+  commission_amount_cents?: number | null;
+  commission_settled?: boolean | null;
 }
 
 export interface CostEntry {
@@ -196,6 +204,7 @@ export interface ProjectFinancialSummary {
   general_cost_cents: number;
   labor_cost_cents: number;
   total_cost_cents: number;
+  commission_cents: number;
   gross_profit_cents: number;
   profit_rate: number;
   expected_payment_cents: number;
