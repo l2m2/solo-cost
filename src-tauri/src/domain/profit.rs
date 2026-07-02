@@ -56,6 +56,7 @@ pub struct ProjectFinancialSummary {
     pub general_cost_cents: i64,
     pub labor_cost_cents: i64,
     pub total_cost_cents: i64,
+    pub commission_cents: i64,
     pub gross_profit_cents: i64,
     pub profit_rate: f64,
     pub expected_payment_cents: i64,
@@ -68,12 +69,31 @@ pub fn project_financial_summary(
     project_id: i64,
 ) -> AppResult<ProjectFinancialSummary> {
     // load project core
-    let (contract, inclusive, rate): (i64, i64, f64) = conn
+    let (contract, inclusive, rate, comm_mode, comm_rate, comm_amount, comm_settled): (
+        i64,
+        i64,
+        f64,
+        String,
+        Option<f64>,
+        Option<i64>,
+        i64,
+    ) = conn
         .query_row(
-            "SELECT contract_amount_cents, contract_amount_is_tax_inclusive, tax_rate
+            "SELECT contract_amount_cents, contract_amount_is_tax_inclusive, tax_rate,
+                    commission_mode, commission_rate, commission_amount_cents, commission_settled
              FROM projects WHERE id = ?1 AND deleted_at IS NULL",
             [project_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                ))
+            },
         )
         .map_err(|e| match e {
             rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
@@ -82,6 +102,7 @@ pub fn project_financial_summary(
             },
             other => AppError::Db(other),
         })?;
+    let comm_settled = comm_settled != 0;
     let is_inclusive = inclusive != 0;
     let one_plus = 1.0 + rate;
     let (revenue_inc, revenue_exc) = if is_inclusive {
@@ -117,14 +138,6 @@ pub fn project_financial_summary(
         labor += cost;
     }
 
-    let total_cost = general + labor;
-    let gross = revenue_exc - total_cost;
-    let profit_rate = if revenue_exc == 0 {
-        0.0
-    } else {
-        gross as f64 / revenue_exc as f64
-    };
-
     // payments
     let expected: i64 = conn.query_row(
         "SELECT COALESCE(SUM(expected_amount_cents), 0) FROM contract_payments
@@ -139,6 +152,30 @@ pub fn project_financial_summary(
         [project_id],
         |r| r.get(0),
     )?;
+
+    // sales commission — depends on mode
+    let commission = match comm_mode.as_str() {
+        "rate" => {
+            let r = comm_rate.unwrap_or(0.0);
+            (actual as f64 * r).round() as i64
+        }
+        "fixed" => {
+            if comm_settled {
+                comm_amount.unwrap_or(0)
+            } else {
+                0
+            }
+        }
+        _ => 0, // "none" 与任何异常值
+    };
+
+    let total_cost = general + labor + commission;
+    let gross = revenue_exc - total_cost;
+    let profit_rate = if revenue_exc == 0 {
+        0.0
+    } else {
+        gross as f64 / revenue_exc as f64
+    };
     let collection_rate = if expected == 0 {
         0.0
     } else {
@@ -152,6 +189,7 @@ pub fn project_financial_summary(
         general_cost_cents: general,
         labor_cost_cents: labor,
         total_cost_cents: total_cost,
+        commission_cents: commission,
         gross_profit_cents: gross,
         profit_rate,
         expected_payment_cents: expected,
@@ -327,6 +365,84 @@ mod tests {
         assert_eq!(s.expected_payment_cents, 500_000);
         // actual drops to 0
         assert_eq!(s.actual_payment_cents, 0);
+    }
+
+    #[test]
+    fn commission_mode_none_yields_zero() {
+        let db = TestDb::new();
+        make_full_fixture(&db.conn);
+        // fixture 未设 commission_mode，DB 默认为 'none'
+        let s = project_financial_summary(&db.conn, 1).unwrap();
+        assert_eq!(s.commission_cents, 0);
+        // total_cost = 210_000（与原 full 用例一致）
+        assert_eq!(s.total_cost_cents, 210_000);
+    }
+
+    #[test]
+    fn commission_rate_scales_with_received() {
+        let db = TestDb::new();
+        make_full_fixture(&db.conn);
+        db.conn
+            .execute(
+                "UPDATE projects SET commission_mode='rate', commission_rate=0.05
+                 WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let s = project_financial_summary(&db.conn, 1).unwrap();
+        // 已回款 500_000 × 5% = 25_000
+        assert_eq!(s.commission_cents, 25_000);
+        // total_cost = general(50_000) + labor(160_000) + commission(25_000)
+        assert_eq!(s.total_cost_cents, 235_000);
+    }
+
+    #[test]
+    fn commission_fixed_unsettled_ignored() {
+        let db = TestDb::new();
+        make_full_fixture(&db.conn);
+        db.conn
+            .execute(
+                "UPDATE projects SET commission_mode='fixed',
+                    commission_amount_cents=100000, commission_settled=0
+                 WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let s = project_financial_summary(&db.conn, 1).unwrap();
+        assert_eq!(s.commission_cents, 0);
+        assert_eq!(s.total_cost_cents, 210_000);
+    }
+
+    #[test]
+    fn commission_fixed_settled_counted() {
+        let db = TestDb::new();
+        make_full_fixture(&db.conn);
+        db.conn
+            .execute(
+                "UPDATE projects SET commission_mode='fixed',
+                    commission_amount_cents=100000, commission_settled=1
+                 WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let s = project_financial_summary(&db.conn, 1).unwrap();
+        assert_eq!(s.commission_cents, 100_000);
+        assert_eq!(s.total_cost_cents, 310_000);
+    }
+
+    #[test]
+    fn commission_rate_null_defaults_zero() {
+        let db = TestDb::new();
+        make_full_fixture(&db.conn);
+        db.conn
+            .execute(
+                "UPDATE projects SET commission_mode='rate', commission_rate=NULL
+                 WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let s = project_financial_summary(&db.conn, 1).unwrap();
+        assert_eq!(s.commission_cents, 0);
     }
 
     #[test]
