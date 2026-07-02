@@ -30,6 +30,7 @@ import { usePaymentsStore } from "@/stores/payments";
 import { useTasksStore } from "@/stores/tasks";
 import { useTimelogsStore } from "@/stores/timelogs";
 import { useMembersStore } from "@/stores/members";
+import { useProjectsStore } from "@/stores/projects";
 import { useFinancialStore } from "@/stores/financial";
 import { Badge } from "@/components/ui/badge";
 import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
@@ -42,6 +43,7 @@ export default function ProjectDetailPage() {
   const currentCompanyId = useCompanyStore((s) => s.currentId);
   const { loadedForCompany, loadFor: loadCats } = useCategoriesStore();
   const { loadFor: loadCosts } = useCostsStore();
+  const setProjectStatus = useProjectsStore((s) => s.setStatus);
   const [project, setProject] = useState<Project | null>(null);
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export default function ProjectDetailPage() {
           value={project.status}
           onValueChange={async (v) => {
             try {
-              const p = await call<Project>("set_project_status", { id: project.id, status: v });
+              const p = await setProjectStatus(project.id, v);
               setProject(p);
             } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
           }}

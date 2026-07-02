@@ -9,7 +9,7 @@ interface S {
   loadFor: (companyId: number, statusFilter?: string | null) => Promise<void>;
   create: (companyId: number, input: ProjectInput) => Promise<Project>;
   update: (id: number, input: ProjectInput) => Promise<Project>;
-  setStatus: (id: number, status: string) => Promise<void>;
+  setStatus: (id: number, status: string) => Promise<Project>;
   softDelete: (id: number) => Promise<void>;
   reset: () => void;
 }
@@ -38,6 +38,7 @@ export const useProjectsStore = create<S>((set, get) => ({
   async setStatus(id, status) {
     const p = await call<Project>("set_project_status", { id, status });
     set({ list: get().list.map((x) => (x.id === id ? p : x)) });
+    return p;
   },
   async softDelete(id) {
     await call<void>("delete_project", { id });
