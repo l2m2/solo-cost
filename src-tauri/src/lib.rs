@@ -78,6 +78,7 @@ pub fn run() {
             commands::modules::create_module,
             commands::modules::update_module,
             commands::modules::delete_module,
+            commands::modules::get_module_labor_stats,
             commands::tasks::list_tasks,
             commands::tasks::get_task,
             commands::tasks::create_task,

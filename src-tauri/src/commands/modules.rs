@@ -175,6 +175,14 @@ pub fn delete_module(state: tauri::State<AppState>, id: i64) -> AppResult<()> {
     with_conn(&state, |c| delete_impl(c, id))
 }
 
+#[tauri::command]
+pub fn get_module_labor_stats(
+    state: tauri::State<AppState>,
+    project_id: i64,
+) -> AppResult<Vec<crate::domain::module_stats::ModuleLaborStat>> {
+    with_conn(&state, |c| crate::domain::module_stats::labor_by_module(c, project_id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
