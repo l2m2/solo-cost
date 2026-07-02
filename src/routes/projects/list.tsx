@@ -39,6 +39,11 @@ export default function ProjectsListPage() {
     return <div className="text-sm text-muted-foreground">请先选择公司</div>;
   }
 
+  // "全部" 语义 = 不含已归档；用户想看已归档需显式选择该选项
+  const visible = statusFilter == null
+    ? list.filter((p) => p.status !== "archived")
+    : list;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -48,7 +53,7 @@ export default function ProjectsListPage() {
             value={statusFilter ?? "__all"}
             onValueChange={(v) => loadFor(currentId, v === "__all" ? null : v)}
           >
-            <SelectTrigger className="w-40"><SelectValue placeholder={t("project.filterByStatus")} /></SelectTrigger>
+            <SelectTrigger className="w-56"><SelectValue placeholder={t("project.filterByStatus")} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">{t("project.allStatuses")}</SelectItem>
               {STATUS_OPTIONS.map((o) => (
@@ -74,11 +79,11 @@ export default function ProjectsListPage() {
         </div>
       </div>
 
-      {list.length === 0 ? (
+      {visible.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("project.empty")}</CardContent></Card>
       ) : (
         <div className="grid gap-3">
-          {list.map((p) => (
+          {visible.map((p) => (
             <Card key={p.id}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div className="space-y-1">

@@ -79,7 +79,7 @@
     "commissionSettled": "已入账",
     "empty": "当前公司还没有项目",
     "filterByStatus": "按状态筛选",
-    "allStatuses": "全部状态",
+    "allStatuses": "全部（不含已归档）",
     "save": "保存",
     "nameRequired": "项目名必填",
     "delete": "删除项目",
