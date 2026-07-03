@@ -298,7 +298,8 @@
     "expectedPayment": "预期回款",
     "actualPayment": "实收",
     "collectionRate": "回款率",
-    "laborByModule": "按模块统计人力成本"
+    "laborByModule": "按模块统计人力成本",
+    "laborByModuleSummary": "合计 {{hours}}h · {{cost}}"
   },
   "common": {
     "cancel": "取消",

@@ -35,7 +35,7 @@ import { useFinancialStore } from "@/stores/financial";
 import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
-import { Play, CheckCircle, Clock, Pencil, Trash2 } from "lucide-react";
+import { Play, CheckCircle, Clock, Pencil, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
 
@@ -704,6 +704,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   const [statusFilter, setStatusFilter] = useState<string>("__active");
   const [openManageModules, setOpenManageModules] = useState(false);
   const [openZentaoImport, setOpenZentaoImport] = useState(false);
+  const [moduleStatsOpen, setModuleStatsOpen] = useState(false);
   const tasks = byProject[projectId] ?? [];
   const visibleTasks = tasks.filter((tk) => {
     if (statusFilter === "__active") { if (tk.status === "closed") return false; }
@@ -786,27 +787,44 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
 
       {moduleStats.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.laborByModule")}</CardTitle></CardHeader>
-          <CardContent className="p-0">
-            <Table compact>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("module.title")}</TableHead>
-                  <TableHead className="text-right w-24">{t("timelog.hours")}</TableHead>
-                  <TableHead className="text-right w-32">人力成本</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {moduleStats.map((s) => (
-                  <TableRow key={s.module_id ?? "unassigned"}>
-                    <TableCell>{s.module_name ?? t("module.unassigned")}</TableCell>
-                    <TableCell className="text-right">{s.hours}</TableCell>
-                    <TableCell className="text-right">{formatCNY(s.cost_cents)}</TableCell>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-4 py-3 text-left"
+            onClick={() => setModuleStatsOpen((o) => !o)}
+          >
+            <div className="flex items-center gap-1.5">
+              {moduleStatsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              <span className="text-sm font-semibold">{t("financial.laborByModule")}</span>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              {t("financial.laborByModuleSummary", {
+                hours: moduleStats.reduce((sum, s) => sum + s.hours, 0),
+                cost: formatCNY(moduleStats.reduce((sum, s) => sum + s.cost_cents, 0)),
+              })}
+            </span>
+          </button>
+          {moduleStatsOpen && (
+            <CardContent className="p-0">
+              <Table compact>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("module.title")}</TableHead>
+                    <TableHead className="text-right w-24">{t("timelog.hours")}</TableHead>
+                    <TableHead className="text-right w-32">人力成本</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
+                </TableHeader>
+                <TableBody>
+                  {moduleStats.map((s) => (
+                    <TableRow key={s.module_id ?? "unassigned"}>
+                      <TableCell>{s.module_name ?? t("module.unassigned")}</TableCell>
+                      <TableCell className="text-right">{s.hours}</TableCell>
+                      <TableCell className="text-right">{formatCNY(s.cost_cents)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
         </Card>
       )}
 
