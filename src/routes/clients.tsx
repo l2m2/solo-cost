@@ -79,7 +79,7 @@ export default function ClientsPage() {
                   <TableHead>{t("client.name")}</TableHead>
                   <TableHead className="w-40">{t("client.contactName")}</TableHead>
                   <TableHead className="w-48">{t("client.contactInfo")}</TableHead>
-                  <TableHead className="w-48">{t("client.legalName")}</TableHead>
+                  <TableHead className="w-56">{t("client.legalName")}</TableHead>
                   <TableHead className="w-40">{t("client.taxId")}</TableHead>
                   <TableHead className="w-24 text-right">{t("common.actions")}</TableHead>
                 </TableRow>
@@ -90,8 +90,8 @@ export default function ClientsPage() {
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell className="text-muted-foreground">{c.contact_name ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{c.contact_info ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.legal_name ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.tax_id ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{c.legal_name ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">{c.tax_id ?? "—"}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <Button
                         size="sm"
