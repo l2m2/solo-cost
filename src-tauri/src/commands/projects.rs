@@ -21,6 +21,8 @@ pub struct Project {
     pub id: i64,
     pub company_id: i64,
     pub name: String,
+    pub client_id: Option<i64>,
+    /// Read-only convenience: populated via LEFT JOIN clients. Not settable on write.
     pub client_name: Option<String>,
     pub status: String,
     pub contract_amount_cents: i64,
@@ -41,7 +43,7 @@ pub struct Project {
 #[derive(Debug, Deserialize)]
 pub struct ProjectInput {
     pub name: String,
-    pub client_name: Option<String>,
+    pub client_id: Option<i64>,
     pub status: Option<String>,
     pub contract_amount_cents: Option<i64>,
     pub contract_amount_is_tax_inclusive: Option<bool>,
@@ -61,6 +63,7 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         id: row.get("id")?,
         company_id: row.get("company_id")?,
         name: row.get("name")?,
+        client_id: row.get("client_id")?,
         client_name: row.get("client_name")?,
         status: row.get("status")?,
         contract_amount_cents: row.get("contract_amount_cents")?,
@@ -134,15 +137,17 @@ pub(crate) fn list_impl(
 ) -> AppResult<Vec<Project>> {
     let (sql, params): (&str, Vec<rusqlite::types::Value>) = match status {
         Some(s) => (
-            "SELECT * FROM projects
-             WHERE company_id = ?1 AND status = ?2 AND deleted_at IS NULL
-             ORDER BY id DESC",
+            "SELECT p.*, c.name AS client_name
+             FROM projects p LEFT JOIN clients c ON c.id = p.client_id
+             WHERE p.company_id = ?1 AND p.status = ?2 AND p.deleted_at IS NULL
+             ORDER BY p.id DESC",
             vec![company_id.into(), s.to_string().into()],
         ),
         None => (
-            "SELECT * FROM projects
-             WHERE company_id = ?1 AND deleted_at IS NULL
-             ORDER BY id DESC",
+            "SELECT p.*, c.name AS client_name
+             FROM projects p LEFT JOIN clients c ON c.id = p.client_id
+             WHERE p.company_id = ?1 AND p.deleted_at IS NULL
+             ORDER BY p.id DESC",
             vec![company_id.into()],
         ),
     };
@@ -157,7 +162,9 @@ pub(crate) fn list_impl(
 
 pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<Project> {
     conn.query_row(
-        "SELECT * FROM projects WHERE id = ?1 AND deleted_at IS NULL",
+        "SELECT p.*, c.name AS client_name
+         FROM projects p LEFT JOIN clients c ON c.id = p.client_id
+         WHERE p.id = ?1 AND p.deleted_at IS NULL",
         [id],
         row_to_project,
     )
@@ -180,7 +187,7 @@ pub(crate) fn create_impl(
     categories::ensure_presets(conn, company_id)?;
     conn.execute(
         "INSERT INTO projects(
-            company_id, name, client_name, status,
+            company_id, name, client_id, status,
             contract_amount_cents, contract_amount_is_tax_inclusive, tax_rate,
             start_date, end_date, actual_delivered_at, notes,
             commission_mode, commission_rate, commission_amount_cents, commission_settled
@@ -193,7 +200,7 @@ pub(crate) fn create_impl(
         rusqlite::params![
             company_id,
             input.name.trim(),
-            input.client_name.as_deref(),
+            input.client_id,
             input.status.as_deref(),
             input.contract_amount_cents,
             input.contract_amount_is_tax_inclusive.map(|b| b as i64),
@@ -217,7 +224,7 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &ProjectInput) -> A
     let n = conn.execute(
         "UPDATE projects SET
             name = ?1,
-            client_name = ?2,
+            client_id = ?2,
             status = COALESCE(?3, status),
             contract_amount_cents = COALESCE(?4, contract_amount_cents),
             contract_amount_is_tax_inclusive = COALESCE(?5, contract_amount_is_tax_inclusive),
@@ -234,7 +241,7 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &ProjectInput) -> A
          WHERE id = ?15 AND deleted_at IS NULL",
         rusqlite::params![
             input.name.trim(),
-            input.client_name.as_deref(),
+            input.client_id,
             input.status.as_deref(),
             input.contract_amount_cents,
             input.contract_amount_is_tax_inclusive.map(|b| b as i64),
@@ -364,7 +371,7 @@ mod tests {
     fn input(name: &str) -> ProjectInput {
         ProjectInput {
             name: name.into(),
-            client_name: None,
+            client_id: None,
             status: None,
             contract_amount_cents: None,
             contract_amount_is_tax_inclusive: None,

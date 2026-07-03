@@ -35,6 +35,8 @@ export interface Project {
   id: number;
   company_id: number;
   name: string;
+  client_id: number | null;
+  /** Read-only: populated via backend JOIN clients. */
   client_name: string | null;
   status: string;
   contract_amount_cents: number;
@@ -54,7 +56,7 @@ export interface Project {
 
 export interface ProjectInput {
   name: string;
-  client_name?: string | null;
+  client_id?: number | null;
   status?: string | null;
   contract_amount_cents?: number | null;
   contract_amount_is_tax_inclusive?: boolean | null;
@@ -118,6 +120,28 @@ export interface Member {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Client {
+  id: number;
+  company_id: number;
+  name: string;
+  contact_name: string | null;
+  contact_info: string | null;
+  tax_id: string | null;
+  legal_name: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientInput {
+  name: string;
+  contact_name?: string | null;
+  contact_info?: string | null;
+  tax_id?: string | null;
+  legal_name?: string | null;
+  notes?: string | null;
 }
 
 export interface MemberInput {

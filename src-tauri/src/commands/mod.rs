@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod backup;
 pub mod categories;
+pub mod clients;
 pub mod companies;
 pub mod costs;
 pub mod members;

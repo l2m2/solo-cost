@@ -32,7 +32,8 @@
     "reports": "报表",
     "trash": "回收站",
     "settings": "设置",
-    "companies": "公司管理"
+    "companies": "公司管理",
+    "clients": "客户"
   },
   "company": {
     "switcher": "切换公司",
@@ -65,6 +66,8 @@
     "edit": "编辑项目",
     "name": "项目名",
     "client": "客户",
+    "selectClient": "选择客户",
+    "clientRequired": "请选择客户",
     "contractAmount": "合同总价",
     "taxInclusive": "含税",
     "taxRate": "税率",
@@ -299,7 +302,25 @@
     "error": "操作失败：{{msg}}",
     "next": "下一步",
     "back": "上一步",
-    "done": "完成"
+    "done": "完成",
+    "actions": "操作"
+  },
+  "client": {
+    "title": "客户",
+    "create": "新建客户",
+    "edit": "编辑",
+    "delete": "删除",
+    "save": "保存",
+    "name": "客户名",
+    "contactName": "联系人",
+    "contactInfo": "联系方式",
+    "taxId": "税号",
+    "legalName": "开票抬头",
+    "notes": "备注",
+    "empty": "暂无客户，先新建一个",
+    "nameRequired": "客户名必填",
+    "deleteConfirm": "确认删除客户「{{name}}」？被项目引用的客户不能删除，请先在项目中改绑。",
+    "quickCreateHint": "只填名字即可，完整资料可稍后到客户页补充。"
   },
   "settings": {
     "title": "设置",

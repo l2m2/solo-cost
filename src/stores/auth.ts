@@ -7,6 +7,7 @@ import { useCostsStore } from "./costs";
 import { useTrashStore } from "./trash";
 import { useFinancialStore } from "./financial";
 import { useMembersStore } from "./members";
+import { useClientsStore } from "./clients";
 import { usePaymentsStore } from "./payments";
 import { useTasksStore } from "./tasks";
 import { useTimelogsStore } from "./timelogs";
@@ -58,6 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useTrashStore.getState().reset();
     useFinancialStore.getState().reset();
     useMembersStore.getState().reset();
+    useClientsStore.getState().reset();
     usePaymentsStore.getState().reset();
     useTasksStore.getState().reset();
     useTimelogsStore.getState().reset();

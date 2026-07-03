@@ -19,13 +19,18 @@ import { formatCNY } from "@/lib/money";
 import { STATUS_OPTIONS, statusBadgeClass, statusLabel } from "@/lib/status";
 import { useCompanyStore } from "@/stores/company";
 import { useProjectsStore } from "@/stores/projects";
-import type { Project, ProjectInput } from "@/types";
+import { useClientsStore } from "@/stores/clients";
+import type { Client, Project, ProjectInput } from "@/types";
 
 export default function ProjectsListPage() {
   const { t } = useTranslation();
   const currentId = useCompanyStore((s) => s.currentId);
   const { list, loadedForCompany, statusFilter, loadFor, create, update, softDelete } =
     useProjectsStore();
+  const {
+    loadedForCompany: clientsLoadedFor,
+    loadFor: loadClients,
+  } = useClientsStore();
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
 
@@ -34,6 +39,11 @@ export default function ProjectsListPage() {
       loadFor(currentId, null);
     }
   }, [currentId, loadedForCompany, loadFor]);
+  useEffect(() => {
+    if (currentId != null && clientsLoadedFor !== currentId) {
+      loadClients(currentId);
+    }
+  }, [currentId, clientsLoadedFor, loadClients]);
 
   if (currentId == null) {
     return <div className="text-sm text-muted-foreground">请先选择公司</div>;
@@ -157,8 +167,14 @@ function ProjectForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
+  const currentId = useCompanyStore((s) => s.currentId);
+  const { list: clients, create: createClient } = useClientsStore();
   const [name, setName] = useState(initial?.name ?? "");
-  const [client, setClient] = useState(initial?.client_name ?? "");
+  const [clientId, setClientId] = useState<string>(
+    initial?.client_id != null ? String(initial.client_id) : ""
+  );
+  const [quickCreate, setQuickCreate] = useState(false);
+  const [quickName, setQuickName] = useState("");
   const [status, setStatus] = useState(initial?.status ?? "pending");
   const [amount, setAmount] = useState(initial?.contract_amount_cents ?? 0);
   const [inclusive, setInclusive] = useState(initial?.contract_amount_is_tax_inclusive ?? true);
@@ -176,11 +192,12 @@ function ProjectForm({
 
   const submit = async () => {
     if (!name.trim()) return toast.error(t("project.nameRequired"));
+    if (!clientId) return toast.error(t("project.clientRequired"));
     setBusy(true);
     try {
       await onSubmit({
         name: name.trim(),
-        client_name: client.trim() || null,
+        client_id: Number(clientId),
         status,
         contract_amount_cents: amount,
         contract_amount_is_tax_inclusive: inclusive,
@@ -210,7 +227,24 @@ function ProjectForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("project.client")}</Label>
-          <Input value={client} onChange={(e) => setClient(e.target.value)} />
+          <div className="flex gap-2">
+            <Select value={clientId} onValueChange={setClientId}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder={t("project.selectClient")} />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((c: Client) => (
+                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => { setQuickName(""); setQuickCreate(true); }}
+            >{t("client.create")}</Button>
+          </div>
         </div>
         <div className="space-y-1">
           <Label>状态</Label>
@@ -224,6 +258,37 @@ function ProjectForm({
           </Select>
         </div>
       </div>
+
+      <Dialog open={quickCreate} onOpenChange={setQuickCreate}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{t("client.create")}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>{t("client.name")}</Label>
+              <Input
+                value={quickName}
+                onChange={(e) => setQuickName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">{t("client.quickCreateHint")}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuickCreate(false)}>{t("common.cancel")}</Button>
+            <Button onClick={async () => {
+              if (currentId == null) return;
+              if (!quickName.trim()) return toast.error(t("client.nameRequired"));
+              try {
+                const c = await createClient(currentId, { name: quickName.trim() });
+                setClientId(String(c.id));
+                setQuickCreate(false);
+              } catch (e: unknown) {
+                toast.error(t("common.error", { msg: String(e) }));
+              }
+            }}>{t("client.save")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("project.contractAmount")}</Label>
