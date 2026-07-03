@@ -33,6 +33,8 @@ export default function ProjectsListPage() {
   } = useClientsStore();
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleteInput, setDeleteInput] = useState("");
 
   useEffect(() => {
     if (currentId != null && loadedForCompany !== currentId) {
@@ -120,11 +122,7 @@ export default function ProjectsListPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={async () => {
-                        if (!confirm(t("project.deleteConfirm", { name: p.name }))) return;
-                        try { await softDelete(p.id); }
-                        catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-                      }}
+                      onClick={() => { setDeleteTarget(p); setDeleteInput(""); }}
                     >
                       {t("project.delete")}
                     </Button>
@@ -135,6 +133,42 @@ export default function ProjectsListPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteInput(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{t("project.delete")}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {t("project.deleteConfirm", { name: deleteTarget?.name ?? "" })}
+            </p>
+            <div className="space-y-1">
+              <Label>{t("project.typeToConfirm")}</Label>
+              <Input
+                value={deleteInput}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder={deleteTarget?.name}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteInput(""); }}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteInput !== deleteTarget?.name}
+              onClick={async () => {
+                if (!deleteTarget) return;
+                try { await softDelete(deleteTarget.id); }
+                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                setDeleteTarget(null);
+                setDeleteInput("");
+              }}
+            >{t("project.delete")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-w-lg">

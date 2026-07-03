@@ -87,6 +87,7 @@
     "nameRequired": "项目名必填",
     "delete": "删除项目",
     "deleteConfirm": "确认删除项目「{{name}}」？该项目下的成本将一并被软删除，可在回收站恢复。",
+    "typeToConfirm": "输入项目代号确认删除",
     "openDetail": "查看详情"
   },
   "module": {
