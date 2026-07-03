@@ -71,6 +71,9 @@ pub(crate) struct ParsedRow {
     pub consumed_hours: f64,
     pub work_date: Option<String>,
     pub due_date: Option<String>,
+    pub created_at: Option<String>,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
 }
 
 // ─── Encoding detection ──────────────────────────────────────────────────
@@ -96,12 +99,12 @@ pub(crate) fn map_status(zentao_status: &str, close_reason: &str) -> Option<Stri
     match zentao_status.trim() {
         "已关闭" => {
             if close_reason.trim() == "已完成" {
-                Some("done".into())
+                Some("closed".into()) // done AND archived
             } else {
                 None // cancelled / duplicate / etc → skip whole row
             }
         }
-        "已完成" => Some("done".into()),
+        "已完成" => Some("done".into()), // done, not yet closed
         "进行中" | "已激活" => Some("in_progress".into()),
         "已暂停" | "未开始" => Some("todo".into()),
         "已取消" => None,
@@ -154,17 +157,17 @@ pub(crate) fn extract_module_leaf(raw: &str) -> Option<String> {
 
 // ─── Work date fallback ──────────────────────────────────────────────────
 
-pub(crate) fn pick_work_date(actual_start: &str, actual_end: &str, created_at: &str) -> Option<String> {
-    fn take_date_prefix(s: &str) -> Option<String> {
-        let t = s.trim();
-        if t.len() >= 10 && t.as_bytes().get(4) == Some(&b'-') && t.as_bytes().get(7) == Some(&b'-') {
-            Some(t[0..10].into())
-        } else if t.is_empty() {
-            None
-        } else {
-            None
-        }
+// Take the leading "YYYY-MM-DD" of a zentao datetime string (empty / malformed → None).
+pub(crate) fn take_date_prefix(s: &str) -> Option<String> {
+    let t = s.trim();
+    if t.len() >= 10 && t.as_bytes().get(4) == Some(&b'-') && t.as_bytes().get(7) == Some(&b'-') {
+        Some(t[0..10].into())
+    } else {
+        None
     }
+}
+
+pub(crate) fn pick_work_date(actual_start: &str, actual_end: &str, created_at: &str) -> Option<String> {
     if let Some(d) = take_date_prefix(actual_start) {
         return Some(d);
     }
@@ -245,6 +248,10 @@ pub(crate) fn parse_all(bytes: &[u8]) -> AppResult<Vec<ParsedRow>> {
         let estimated_hours = strip_h_parse(get(&rec, col_index.get("最初预计")));
         let consumed_hours = strip_h_parse(get(&rec, col_index.get("总计消耗"))).unwrap_or(0.0);
 
+        let started_at = take_date_prefix(get(&rec, col_index.get("实际开始")));
+        let completed_at = take_date_prefix(get(&rec, col_index.get("实际完成")));
+        let created_at = take_date_prefix(get(&rec, col_index.get("创建日期")));
+
         let work_date = pick_work_date(
             get(&rec, col_index.get("实际开始")),
             get(&rec, col_index.get("实际完成")),
@@ -273,8 +280,15 @@ pub(crate) fn parse_all(bytes: &[u8]) -> AppResult<Vec<ParsedRow>> {
             consumed_hours,
             work_date,
             due_date,
+            created_at,
+            started_at,
+            completed_at,
         });
     }
+
+    // Import in ascending zentao 编号 order so task ids follow the original numbering
+    // (the CSV export is newest-first). Rows are keyed by "zentao:<num>".
+    out.sort_by_key(|r| r.zentao_id.trim_start_matches("zentao:").parse::<i64>().unwrap_or(i64::MAX));
 
     Ok(out)
 }
@@ -446,8 +460,11 @@ pub(crate) fn execute_impl(
             status: row.status.clone(),
             estimated_hours: row.estimated_hours,
             due_date: row.due_date.clone(),
+            started_at: row.started_at.clone(),
+            completed_at: row.completed_at.clone(),
             module_id,
             external_ref: Some(row.zentao_id.clone()),
+            created_at: row.created_at.clone(),
         };
         let task = match tasks::create_impl(&tx, project_id, &task_input) {
             Ok(t) => t,
@@ -572,8 +589,8 @@ mod tests {
     // ─── Status mapping tests ────────────────────────────────────
 
     #[test]
-    fn parse_status_closed_done_maps_to_done() {
-        assert_eq!(map_status("已关闭", "已完成"), Some("done".into()));
+    fn parse_status_closed_done_maps_to_closed() {
+        assert_eq!(map_status("已关闭", "已完成"), Some("closed".into()));
     }
 
     #[test]
@@ -672,14 +689,17 @@ mod tests {
                  367,a005-2(#25),重写串口通信,已关闭,已完成,4h,4h,2026-06-26 22:00:00,李黎明,Closed,李黎明,/(#0)\n";
         let rows = parse_all(s.as_bytes()).unwrap();
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].zentao_id, "zentao:368");
-        assert_eq!(rows[0].title, "现场实施 20260628");
-        assert_eq!(rows[0].status.as_deref(), Some("done"));
-        assert_eq!(rows[0].assignee_name.as_deref(), Some("李黎明"));
-        assert_eq!(rows[0].module_name, None);
-        assert!((rows[0].estimated_hours.unwrap() - 8.0).abs() < 1e-9);
-        assert!((rows[0].consumed_hours - 8.0).abs() < 1e-9);
-        assert_eq!(rows[0].work_date.as_deref(), Some("2026-06-28"));
+        // Sorted ascending by 编号: 367 before 368.
+        assert_eq!(rows[0].zentao_id, "zentao:367");
+        assert_eq!(rows[1].zentao_id, "zentao:368");
+        assert_eq!(rows[1].title, "现场实施 20260628");
+        assert_eq!(rows[1].status.as_deref(), Some("closed"));
+        assert_eq!(rows[1].assignee_name.as_deref(), Some("李黎明"));
+        assert_eq!(rows[1].module_name, None);
+        assert!((rows[1].estimated_hours.unwrap() - 8.0).abs() < 1e-9);
+        assert!((rows[1].consumed_hours - 8.0).abs() < 1e-9);
+        assert_eq!(rows[1].work_date.as_deref(), Some("2026-06-28"));
+        assert_eq!(rows[1].started_at.as_deref(), Some("2026-06-28"));
     }
 
     // ─── Execution / preview tests ───────────────────────────────

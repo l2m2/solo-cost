@@ -27,11 +27,28 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0007_clients",
         include_str!("../../migrations/0007_clients.sql"),
     ),
+    (
+        "0008_tasks_status_dates",
+        include_str!("../../migrations/0008_tasks_status_dates.sql"),
+    ),
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
     ensure_meta_table(conn)?;
     let current = current_version(conn)?;
+    // Some migrations rebuild a table that others reference (e.g. changing a CHECK
+    // constraint requires dropping & recreating the table). SQLite refuses to drop a
+    // table whose rows are still referenced while foreign keys are enforced, and the
+    // pragma is a no-op inside a transaction — so disable enforcement for the whole
+    // migration pass and restore it afterward. Each migration stays atomic via its
+    // own transaction.
+    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+    let result = apply_pending(conn, current);
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+    result
+}
+
+fn apply_pending(conn: &Connection, current: i64) -> AppResult<()> {
     for (idx, (name, sql)) in MIGRATIONS.iter().enumerate() {
         let target = (idx + 1) as i64;
         if target <= current {
@@ -98,7 +115,7 @@ mod tests {
         assert_eq!(n, 1);
 
         let v = current_version(&conn).unwrap();
-        assert_eq!(v, 7);
+        assert_eq!(v, 8);
     }
 
     #[test]
@@ -106,6 +123,6 @@ mod tests {
         let conn = open_in_memory_for_test("p").unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap(); // second run should not error
-        assert_eq!(current_version(&conn).unwrap(), 7);
+        assert_eq!(current_version(&conn).unwrap(), 8);
     }
 }

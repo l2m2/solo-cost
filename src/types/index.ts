@@ -184,6 +184,8 @@ export interface Task {
   estimated_hours: number | null;
   actual_hours: number;
   due_date: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   module_id: number | null;
   external_ref: string | null;
   created_at: string;

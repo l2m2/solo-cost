@@ -239,11 +239,15 @@
     "status": "状态",
     "estimatedHours": "预估工时",
     "dueDate": "截止日期",
+    "createdAt": "创建日期",
+    "startedAt": "实际开始",
+    "completedAt": "实际完成",
     "notes": "备注",
     "save": "保存",
     "empty": "暂无任务，新建第一个",
     "titleRequired": "标题必填",
     "filterByStatus": "按状态筛选",
+    "activeStatuses": "未关闭",
     "allStatuses": "全部状态",
     "unassigned": "未指派",
     "module": "模块",
@@ -253,7 +257,8 @@
   "taskStatus": {
     "todo": "待办",
     "in_progress": "进行中",
-    "done": "已完成"
+    "done": "已完成",
+    "closed": "已关闭"
   },
   "pagination": {
     "info": "共 {{total}} 条 · 第 {{page}} / {{pages}} 页",

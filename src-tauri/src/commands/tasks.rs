@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
-const ALLOWED_STATUSES: [&str; 3] = ["todo", "in_progress", "done"];
+const ALLOWED_STATUSES: [&str; 4] = ["todo", "in_progress", "done", "closed"];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Task {
@@ -18,6 +18,8 @@ pub struct Task {
     pub estimated_hours: Option<f64>,
     pub actual_hours: f64,
     pub due_date: Option<String>,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
     pub module_id: Option<i64>,
     pub external_ref: Option<String>,
     pub created_at: String,
@@ -32,8 +34,15 @@ pub struct TaskInput {
     pub status: Option<String>,
     pub estimated_hours: Option<f64>,
     pub due_date: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
     pub module_id: Option<i64>,
     pub external_ref: Option<String>,
+    // Optional source creation timestamp (zentao import); manual tasks fall back to now().
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
@@ -47,6 +56,8 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         estimated_hours: row.get("estimated_hours")?,
         actual_hours: row.get("actual_hours")?,
         due_date: row.get("due_date")?,
+        started_at: row.get("started_at")?,
+        completed_at: row.get("completed_at")?,
         module_id: row.get("module_id")?,
         external_ref: row.get("external_ref")?,
         created_at: row.get("created_at")?,
@@ -164,8 +175,10 @@ pub(crate) fn create_impl(
     }
     conn.execute(
         "INSERT INTO tasks(project_id, title, description, assignee_id,
-                           status, estimated_hours, due_date, module_id, external_ref)
-         VALUES(?1, ?2, ?3, ?4, COALESCE(?5, 'todo'), ?6, ?7, ?8, ?9)",
+                           status, estimated_hours, due_date, started_at, completed_at,
+                           module_id, external_ref, created_at)
+         VALUES(?1, ?2, ?3, ?4, COALESCE(?5, 'todo'), ?6, ?7, ?8, ?9,
+                ?10, ?11, COALESCE(?12, datetime('now')))",
         rusqlite::params![
             project_id,
             input.title.trim(),
@@ -174,8 +187,11 @@ pub(crate) fn create_impl(
             input.status.as_deref(),
             input.estimated_hours,
             input.due_date.as_deref(),
+            input.started_at.as_deref(),
+            input.completed_at.as_deref(),
             input.module_id,
             input.external_ref.as_deref(),
+            input.created_at.as_deref(),
         ],
     )?;
     let id = conn.last_insert_rowid();
@@ -328,8 +344,11 @@ mod tests {
             status: None,
             estimated_hours: None,
             due_date: None,
+            started_at: None,
+            completed_at: None,
             module_id: None,
             external_ref: None,
+            created_at: None,
         }
     }
 

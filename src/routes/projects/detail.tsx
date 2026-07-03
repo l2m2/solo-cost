@@ -43,6 +43,7 @@ const TASK_STATUS_BADGE_CLASS: Record<string, string> = {
   todo: "bg-slate-100 text-slate-700",
   in_progress: "bg-amber-100 text-amber-700",
   done: "bg-emerald-100 text-emerald-700",
+  closed: "bg-zinc-200 text-zinc-500",
 };
 
 export default function ProjectDetailPage() {
@@ -686,7 +687,7 @@ function MarkReceivedForm({ initial, onSubmit, onCancel }: {
 
 function TasksPanel({ projectId, companyId }: { projectId: number; companyId: number }) {
   const { t } = useTranslation();
-  const { byProject, statusFilter, loadFor, create, update, setStatus, softDelete } = useTasksStore();
+  const { byProject, loadFor, create, update, setStatus, softDelete } = useTasksStore();
   const {
     byProject: modulesByProject,
     loadedForProject: modulesLoadedFor,
@@ -699,10 +700,14 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   } = useModulesStore();
   const modules = modulesByProject[projectId] ?? [];
   const [moduleFilter, setModuleFilter] = useState<string>("__all"); // __all | __unassigned | <id>
+  // __active hides closed tasks (default); __all shows everything; else exact status.
+  const [statusFilter, setStatusFilter] = useState<string>("__active");
   const [openManageModules, setOpenManageModules] = useState(false);
   const [openZentaoImport, setOpenZentaoImport] = useState(false);
   const tasks = byProject[projectId] ?? [];
   const visibleTasks = tasks.filter((tk) => {
+    if (statusFilter === "__active") { if (tk.status === "closed") return false; }
+    else if (statusFilter !== "__all") { if (tk.status !== statusFilter) return false; }
     if (moduleFilter === "__all") return true;
     if (moduleFilter === "__unassigned") return tk.module_id == null;
     return tk.module_id === Number(moduleFilter);
@@ -734,16 +739,15 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Select
-            value={statusFilter ?? "__all"}
-            onValueChange={(v) => loadFor(projectId, v === "__all" ? null : v)}
-          >
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40"><SelectValue placeholder={t("task.filterByStatus")} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all">{t("task.allStatuses")}</SelectItem>
+              <SelectItem value="__active">{t("task.activeStatuses")}</SelectItem>
               <SelectItem value="todo">{t("taskStatus.todo")}</SelectItem>
               <SelectItem value="in_progress">{t("taskStatus.in_progress")}</SelectItem>
               <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
+              <SelectItem value="closed">{t("taskStatus.closed")}</SelectItem>
+              <SelectItem value="__all">{t("task.allStatuses")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={moduleFilter} onValueChange={setModuleFilter}>
@@ -820,6 +824,9 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                   {modules.length > 0 && <TableHead className="w-24">{t("task.module")}</TableHead>}
                   <TableHead className="text-right w-16">预估</TableHead>
                   <TableHead className="text-right w-16">实际</TableHead>
+                  <TableHead className="w-28 whitespace-nowrap">{t("task.createdAt")}</TableHead>
+                  <TableHead className="w-28 whitespace-nowrap">{t("task.startedAt")}</TableHead>
+                  <TableHead className="w-28 whitespace-nowrap">{t("task.completedAt")}</TableHead>
                   <TableHead className="w-28">{t("task.dueDate")}</TableHead>
                   <TableHead className="w-40 text-right">操作</TableHead>
                 </TableRow>
@@ -843,6 +850,9 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                       )}
                       <TableCell className="text-right">{tk.estimated_hours != null ? `${tk.estimated_hours}h` : "—"}</TableCell>
                       <TableCell className="text-right">{tk.actual_hours > 0 ? `${tk.actual_hours}h` : "—"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{tk.created_at ? tk.created_at.slice(0, 10) : "—"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{tk.started_at ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{tk.completed_at ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{tk.due_date ?? "—"}</TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         {tk.status === "todo" && (
@@ -857,7 +867,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                             }}
                           ><Play className="h-4 w-4" /></Button>
                         )}
-                        {tk.status !== "done" && (
+                        {tk.status !== "done" && tk.status !== "closed" && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -1057,6 +1067,7 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
               <SelectItem value="todo">{t("taskStatus.todo")}</SelectItem>
               <SelectItem value="in_progress">{t("taskStatus.in_progress")}</SelectItem>
               <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
+              <SelectItem value="closed">{t("taskStatus.closed")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
