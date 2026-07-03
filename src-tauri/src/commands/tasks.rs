@@ -16,6 +16,7 @@ pub struct Task {
     pub assignee_id: Option<i64>,
     pub status: String,
     pub estimated_hours: Option<f64>,
+    pub actual_hours: f64,
     pub due_date: Option<String>,
     pub module_id: Option<i64>,
     pub external_ref: Option<String>,
@@ -44,6 +45,7 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         assignee_id: row.get("assignee_id")?,
         status: row.get("status")?,
         estimated_hours: row.get("estimated_hours")?,
+        actual_hours: row.get("actual_hours")?,
         due_date: row.get("due_date")?,
         module_id: row.get("module_id")?,
         external_ref: row.get("external_ref")?,
@@ -96,15 +98,21 @@ pub(crate) fn list_impl(
 ) -> AppResult<Vec<Task>> {
     let (sql, params): (&str, Vec<rusqlite::types::Value>) = match status {
         Some(s) => (
-            "SELECT * FROM tasks
-             WHERE project_id = ?1 AND status = ?2 AND deleted_at IS NULL
-             ORDER BY id DESC",
+            "SELECT t.*,
+                    COALESCE((SELECT SUM(hours) FROM time_logs
+                              WHERE task_id = t.id AND deleted_at IS NULL), 0.0) AS actual_hours
+             FROM tasks t
+             WHERE t.project_id = ?1 AND t.status = ?2 AND t.deleted_at IS NULL
+             ORDER BY t.id DESC",
             vec![project_id.into(), s.to_string().into()],
         ),
         None => (
-            "SELECT * FROM tasks
-             WHERE project_id = ?1 AND deleted_at IS NULL
-             ORDER BY id DESC",
+            "SELECT t.*,
+                    COALESCE((SELECT SUM(hours) FROM time_logs
+                              WHERE task_id = t.id AND deleted_at IS NULL), 0.0) AS actual_hours
+             FROM tasks t
+             WHERE t.project_id = ?1 AND t.deleted_at IS NULL
+             ORDER BY t.id DESC",
             vec![project_id.into()],
         ),
     };
@@ -119,7 +127,11 @@ pub(crate) fn list_impl(
 
 pub(crate) fn get_impl(conn: &Connection, id: i64) -> AppResult<Task> {
     conn.query_row(
-        "SELECT * FROM tasks WHERE id = ?1 AND deleted_at IS NULL",
+        "SELECT t.*,
+                COALESCE((SELECT SUM(hours) FROM time_logs
+                          WHERE task_id = t.id AND deleted_at IS NULL), 0.0) AS actual_hours
+         FROM tasks t
+         WHERE t.id = ?1 AND t.deleted_at IS NULL",
         [id],
         row_to_task,
     )

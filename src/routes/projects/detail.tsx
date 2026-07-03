@@ -35,8 +35,15 @@ import { useFinancialStore } from "@/stores/financial";
 import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
+import { Play, CheckCircle, Clock, Pencil, Trash2 } from "lucide-react";
 import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
+
+const TASK_STATUS_BADGE_CLASS: Record<string, string> = {
+  todo: "bg-slate-100 text-slate-700",
+  in_progress: "bg-amber-100 text-amber-700",
+  done: "bg-emerald-100 text-emerald-700",
+};
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -704,6 +711,12 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [openLogs, setOpenLogs] = useState<Task | null>(null);
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(visibleTasks.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedTasks = visibleTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  useEffect(() => { setPage(1); }, [statusFilter, moduleFilter]);
 
   const moduleStats: ModuleLaborStat[] = useModuleStatsStore((s) => s.byProject[projectId] ?? []);
   const refreshModuleStats = useModuleStatsStore((s) => s.refresh);
@@ -796,52 +809,120 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
       {visibleTasks.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("task.empty")}</CardContent></Card>
       ) : (
-        <div className="grid gap-2">
-          {visibleTasks.map((tk) => {
-            const assignee = members.find((m) => m.id === tk.assignee_id);
-            return (
-              <Card key={tk.id}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <span>{tk.title}</span>
-                      <Badge variant="secondary">{t(`taskStatus.${tk.status}`)}</Badge>
-                    </CardTitle>
-                    <div className="text-xs text-muted-foreground">
-                      {assignee?.name ?? t("task.unassigned")}
-                      {tk.due_date && ` · 截止 ${tk.due_date}`}
-                      {tk.estimated_hours != null && ` · 预估 ${tk.estimated_hours}h`}
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Select value={tk.status} onValueChange={async (v) => {
-                      try { await setStatus(tk.id, v, projectId); }
-                      catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-                    }}>
-                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todo">{t("taskStatus.todo")}</SelectItem>
-                        <SelectItem value="in_progress">{t("taskStatus.in_progress")}</SelectItem>
-                        <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button size="sm" variant="ghost" onClick={() => setOpenLogs(tk)}>{t("timelog.title")}</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(tk)}>{t("task.edit")}</Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={async () => {
-                        if (!confirm(t("task.deleteConfirm", { title: tk.title }))) return;
-                        try { await softDelete(tk.id, projectId); }
-                        catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-                      }}
-                    >{t("task.delete")}</Button>
-                  </div>
-                </CardHeader>
-              </Card>
-            );
-          })}
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <Table compact>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-24 whitespace-nowrap">{t("task.status")}</TableHead>
+                  <TableHead>{t("task.name")}</TableHead>
+                  <TableHead className="w-24">{t("task.assignee")}</TableHead>
+                  {modules.length > 0 && <TableHead className="w-24">{t("task.module")}</TableHead>}
+                  <TableHead className="text-right w-16">预估</TableHead>
+                  <TableHead className="text-right w-16">实际</TableHead>
+                  <TableHead className="w-28">{t("task.dueDate")}</TableHead>
+                  <TableHead className="w-40 text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagedTasks.map((tk) => {
+                  const assignee = members.find((m) => m.id === tk.assignee_id);
+                  const module = tk.module_id != null ? modules.find((m) => m.id === tk.module_id) : null;
+                  return (
+                    <TableRow key={tk.id}>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className={`whitespace-nowrap ${TASK_STATUS_BADGE_CLASS[tk.status] ?? ""}`}
+                        >{t(`taskStatus.${tk.status}`)}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{tk.title}</TableCell>
+                      <TableCell className="text-muted-foreground">{assignee?.name ?? "—"}</TableCell>
+                      {modules.length > 0 && (
+                        <TableCell className="text-muted-foreground">{module?.name ?? "—"}</TableCell>
+                      )}
+                      <TableCell className="text-right">{tk.estimated_hours != null ? `${tk.estimated_hours}h` : "—"}</TableCell>
+                      <TableCell className="text-right">{tk.actual_hours > 0 ? `${tk.actual_hours}h` : "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{tk.due_date ?? "—"}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {tk.status === "todo" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            title="开始"
+                            onClick={async () => {
+                              try { await setStatus(tk.id, "in_progress", projectId); }
+                              catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                            }}
+                          ><Play className="h-4 w-4" /></Button>
+                        )}
+                        {tk.status !== "done" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            title="完成"
+                            onClick={async () => {
+                              try { await setStatus(tk.id, "done", projectId); }
+                              catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                            }}
+                          ><CheckCircle className="h-4 w-4" /></Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          title={t("timelog.title")}
+                          onClick={() => setOpenLogs(tk)}
+                        ><Clock className="h-4 w-4" /></Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          title={t("task.edit")}
+                          onClick={() => setEditing(tk)}
+                        ><Pencil className="h-4 w-4" /></Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          title={t("task.delete")}
+                          onClick={async () => {
+                            if (!confirm(t("task.deleteConfirm", { title: tk.title }))) return;
+                            try { await softDelete(tk.id, projectId); }
+                            catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                          }}
+                        ><Trash2 className="h-4 w-4" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {visibleTasks.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between border-t px-3 py-2 text-sm text-muted-foreground">
+                <div>{t("pagination.info", { total: visibleTasks.length, page: currentPage, pages: totalPages })}</div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >{t("pagination.prev")}</Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >{t("pagination.next")}</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>

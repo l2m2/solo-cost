@@ -251,6 +251,11 @@
     "in_progress": "进行中",
     "done": "已完成"
   },
+  "pagination": {
+    "info": "共 {{total}} 条 · 第 {{page}} / {{pages}} 页",
+    "prev": "上一页",
+    "next": "下一页"
+  },
   "timelog": {
     "title": "工时",
     "add": "录入工时",
