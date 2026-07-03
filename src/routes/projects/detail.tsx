@@ -827,7 +827,6 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                   <TableHead className="w-28 whitespace-nowrap">{t("task.createdAt")}</TableHead>
                   <TableHead className="w-28 whitespace-nowrap">{t("task.startedAt")}</TableHead>
                   <TableHead className="w-28 whitespace-nowrap">{t("task.completedAt")}</TableHead>
-                  <TableHead className="w-28">{t("task.dueDate")}</TableHead>
                   <TableHead className="w-40 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -853,7 +852,6 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                       <TableCell className="text-muted-foreground whitespace-nowrap">{tk.created_at ? tk.created_at.slice(0, 10) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">{tk.started_at ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">{tk.completed_at ?? "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{tk.due_date ?? "—"}</TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         {tk.status === "todo" && (
                           <Button
@@ -1008,6 +1006,8 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
     initial?.estimated_hours != null ? String(initial.estimated_hours) : ""
   );
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
+  const [startedAt, setStartedAt] = useState(initial?.started_at ?? "");
+  const [completedAt, setCompletedAt] = useState(initial?.completed_at ?? "");
   const [moduleId, setModuleId] = useState<string>(
     initial?.module_id ? String(initial.module_id) : "__none"
   );
@@ -1033,6 +1033,8 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
         status,
         estimated_hours: estHours === "" ? null : Number(estHours),
         due_date: dueDate || null,
+        started_at: startedAt || null,
+        completed_at: completedAt || null,
         module_id: moduleId === "__none" ? null : Number(moduleId),
       });
     } finally { setBusy(false); }
@@ -1080,6 +1082,16 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
         <div className="space-y-1">
           <Label>{t("task.dueDate")}</Label>
           <Input type="date" value={dueDate ?? ""} onChange={(e) => setDueDate(e.target.value)} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>{t("task.startedAt")}</Label>
+          <Input type="date" value={startedAt ?? ""} onChange={(e) => setStartedAt(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>{t("task.completedAt")}</Label>
+          <Input type="date" value={completedAt ?? ""} onChange={(e) => setCompletedAt(e.target.value)} />
         </div>
       </div>
       <div className="space-y-1">

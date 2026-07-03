@@ -199,6 +199,8 @@ export interface TaskInput {
   status?: string | null;
   estimated_hours?: number | null;
   due_date?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
   module_id?: number | null;
   external_ref?: string | null;
 }

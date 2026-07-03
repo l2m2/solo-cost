@@ -233,9 +233,11 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppR
             status = COALESCE(?4, status),
             estimated_hours = ?5,
             due_date = ?6,
-            module_id = ?7,
+            started_at = ?7,
+            completed_at = ?8,
+            module_id = ?9,
             updated_at = datetime('now')
-         WHERE id = ?8 AND deleted_at IS NULL",
+         WHERE id = ?10 AND deleted_at IS NULL",
         rusqlite::params![
             input.title.trim(),
             input.description.as_deref(),
@@ -243,6 +245,8 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppR
             input.status.as_deref(),
             input.estimated_hours,
             input.due_date.as_deref(),
+            input.started_at.as_deref(),
+            input.completed_at.as_deref(),
             input.module_id,
             id,
         ],
