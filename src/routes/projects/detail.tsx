@@ -829,7 +829,9 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
       )}
 
       {visibleTasks.length === 0 ? (
-        <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("task.empty")}</CardContent></Card>
+        <Card><CardContent className="p-6 text-sm text-muted-foreground">
+          {tasks.length === 0 ? t("task.empty") : t("task.emptyFiltered")}
+        </CardContent></Card>
       ) : (
         <Card>
           <CardContent className="p-0">

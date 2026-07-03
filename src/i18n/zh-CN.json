@@ -245,6 +245,7 @@
     "notes": "备注",
     "save": "保存",
     "empty": "暂无任务，新建第一个",
+    "emptyFiltered": "当前筛选条件下没有任务",
     "titleRequired": "标题必填",
     "filterByStatus": "按状态筛选",
     "activeStatuses": "未关闭",
