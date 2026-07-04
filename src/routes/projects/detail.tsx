@@ -22,7 +22,7 @@ import { HoursInput } from "@/components/forms/HoursInput";
 import { formatCNY } from "@/lib/money";
 import { STATUS_OPTIONS, statusBadgeClass, statusLabel } from "@/lib/status";
 import { call } from "@/lib/ipc";
-import { todayIso } from "@/lib/time";
+import { nowDatetimeLocal, todayIso } from "@/lib/time";
 import { useCompanyStore } from "@/stores/company";
 import { useCategoriesStore } from "@/stores/categories";
 import { useCostsStore } from "@/stores/costs";
@@ -731,6 +731,8 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [openLogs, setOpenLogs] = useState<Task | null>(null);
+  const [startingTask, setStartingTask] = useState<Task | null>(null);
+  const [completingTask, setCompletingTask] = useState<Task | null>(null);
   const PAGE_SIZE = 20;
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(visibleTasks.length / PAGE_SIZE));
@@ -855,10 +857,8 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                   <TableHead className="w-24 whitespace-nowrap">{t("task.status")}</TableHead>
                   <TableHead>{t("task.name")}</TableHead>
                   <TableHead className="w-24">{t("task.assignee")}</TableHead>
-                  {modules.length > 0 && <TableHead className="w-24">{t("task.module")}</TableHead>}
                   <TableHead className="text-right w-16">预估</TableHead>
                   <TableHead className="text-right w-16">实际</TableHead>
-                  <TableHead className="w-28 whitespace-nowrap">{t("task.createdAt")}</TableHead>
                   <TableHead className="w-28 whitespace-nowrap">{t("task.startedAt")}</TableHead>
                   <TableHead className="w-28 whitespace-nowrap">{t("task.completedAt")}</TableHead>
                   <TableHead className="w-40 text-right">操作</TableHead>
@@ -867,7 +867,6 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               <TableBody>
                 {pagedTasks.map((tk) => {
                   const assignee = members.find((m) => m.id === tk.assignee_id);
-                  const module = tk.module_id != null ? modules.find((m) => m.id === tk.module_id) : null;
                   return (
                     <TableRow key={tk.id}>
                       <TableCell>
@@ -878,12 +877,8 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                       </TableCell>
                       <TableCell className="font-medium">{tk.title}</TableCell>
                       <TableCell className="text-muted-foreground">{assignee?.name ?? "—"}</TableCell>
-                      {modules.length > 0 && (
-                        <TableCell className="text-muted-foreground">{module?.name ?? "—"}</TableCell>
-                      )}
                       <TableCell className="text-right">{tk.estimated_hours != null ? `${tk.estimated_hours}h` : "—"}</TableCell>
                       <TableCell className="text-right">{tk.actual_hours > 0 ? `${tk.actual_hours}h` : "—"}</TableCell>
-                      <TableCell className="text-muted-foreground whitespace-nowrap">{tk.created_at ? tk.created_at.slice(0, 10) : "—"}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">{tk.started_at ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">{tk.completed_at ?? "—"}</TableCell>
                       <TableCell className="text-right whitespace-nowrap">
@@ -893,10 +888,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                             variant="ghost"
                             className="h-7 px-2"
                             title="开始"
-                            onClick={async () => {
-                              try { await setStatus(tk.id, "in_progress", projectId); }
-                              catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-                            }}
+                            onClick={() => setStartingTask(tk)}
                           ><Play className="h-4 w-4" /></Button>
                         )}
                         {tk.status !== "done" && tk.status !== "closed" && (
@@ -905,10 +897,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                             variant="ghost"
                             className="h-7 px-2"
                             title="完成"
-                            onClick={async () => {
-                              try { await setStatus(tk.id, "done", projectId); }
-                              catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-                            }}
+                            onClick={() => setCompletingTask(tk)}
                           ><CheckCircle className="h-4 w-4" /></Button>
                         )}
                         <Button
@@ -1018,8 +1007,105 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
         open={openZentaoImport}
         onOpenChange={setOpenZentaoImport}
       />
+
+      <Dialog open={!!startingTask} onOpenChange={(o) => !o && setStartingTask(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>开始任务</DialogTitle></DialogHeader>
+          {startingTask && (
+            <StatusTransitionDialog
+              task={startingTask}
+              label="开始时间"
+              fieldKey="started_at"
+              onSubmit={async (input) => {
+                try { await update(startingTask.id, { ...input, status: "in_progress" }, projectId); setStartingTask(null); }
+                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setStartingTask(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!completingTask} onOpenChange={(o) => !o && setCompletingTask(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>完成任务</DialogTitle></DialogHeader>
+          {completingTask && (
+            <StatusTransitionDialog
+              task={completingTask}
+              label="完成时间"
+              fieldKey="completed_at"
+              onSubmit={async (input) => {
+                try { await update(completingTask.id, { ...input, status: "done" }, projectId); setCompletingTask(null); }
+                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setCompletingTask(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+function StatusTransitionDialog({ task, label, fieldKey, onSubmit, onCancel }: {
+  task: Task;
+  label: string;
+  fieldKey: "started_at" | "completed_at";
+  onSubmit: (input: { description: string | null } & Record<string, string | null>) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [datetime, setDatetime] = useState(
+    task[fieldKey] ? task[fieldKey]!.replace(" ", "T").slice(0, 16) : nowDatetimeLocal()
+  );
+  const [description, setDescription] = useState(task.description ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async () => {
+    setBusy(true);
+    try {
+      const stored = datetime ? datetime.replace("T", " ") : null;
+      const payload: Record<string, string | null> = {
+        title: task.title,
+        description: description.trim() || null,
+      };
+      payload[fieldKey] = stored;
+      await onSubmit(payload);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="text-sm text-muted-foreground">{task.title}</div>
+      <div className="space-y-1">
+        <Label>{label}</Label>
+        <Input
+          type="datetime-local"
+          value={datetime}
+          onChange={(e) => setDatetime(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label>描述</Label>
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel}>取消</Button>
+        <Button onClick={handleSubmit} disabled={busy}>确定</Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+function toDatetimeLocal(v: string | null | undefined): string {
+  if (!v) return "";
+  if (v.includes(" ")) return v.replace(" ", "T").slice(0, 16);
+  if (v.length === 10) return v + "T00:00";
+  return v.slice(0, 16);
+}
+
+function fromDatetimeLocal(v: string): string | null {
+  if (!v) return null;
+  return v.replace("T", " ");
 }
 
 function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
@@ -1040,8 +1126,8 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
     initial?.estimated_hours != null ? String(initial.estimated_hours) : ""
   );
   const [dueDate, setDueDate] = useState(initial?.due_date ?? "");
-  const [startedAt, setStartedAt] = useState(initial?.started_at ?? "");
-  const [completedAt, setCompletedAt] = useState(initial?.completed_at ?? "");
+  const [startedAt, setStartedAt] = useState(toDatetimeLocal(initial?.started_at));
+  const [completedAt, setCompletedAt] = useState(toDatetimeLocal(initial?.completed_at));
   const [moduleId, setModuleId] = useState<string>(
     initial?.module_id ? String(initial.module_id) : "__none"
   );
@@ -1067,8 +1153,8 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
         status,
         estimated_hours: estHours === "" ? null : Number(estHours),
         due_date: dueDate || null,
-        started_at: startedAt || null,
-        completed_at: completedAt || null,
+        started_at: fromDatetimeLocal(startedAt),
+        completed_at: fromDatetimeLocal(completedAt),
         module_id: moduleId === "__none" ? null : Number(moduleId),
       });
     } finally { setBusy(false); }
@@ -1121,11 +1207,11 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("task.startedAt")}</Label>
-          <Input type="date" value={startedAt ?? ""} onChange={(e) => setStartedAt(e.target.value)} />
+          <Input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} />
         </div>
         <div className="space-y-1">
           <Label>{t("task.completedAt")}</Label>
-          <Input type="date" value={completedAt ?? ""} onChange={(e) => setCompletedAt(e.target.value)} />
+          <Input type="datetime-local" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)} />
         </div>
       </div>
       <div className="space-y-1">
