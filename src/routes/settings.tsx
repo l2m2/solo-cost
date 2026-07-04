@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { useBackupStore } from "@/stores/backup";
 import { useAuthStore } from "@/stores/auth";
+import CompaniesPage from "@/routes/companies";
+import CategoriesPage from "@/routes/categories";
 
 function RestoreDialog({ open: isOpen, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
@@ -215,6 +217,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+      <CompaniesPage />
+      <CategoriesPage />
       <RestoreDialog open={openRestore} onClose={() => setOpenRestore(false)} />
     </div>
   );

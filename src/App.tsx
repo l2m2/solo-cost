@@ -6,8 +6,6 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import SetupPage from "@/routes/setup";
 import LoginPage from "@/routes/login";
 import DashboardPage from "@/routes/dashboard";
-import CompaniesPage from "@/routes/companies";
-import CategoriesPage from "@/routes/categories";
 import MembersPage from "@/routes/members";
 import ClientsPage from "@/routes/clients";
 import ProjectsListPage from "@/routes/projects/list";
@@ -46,12 +44,10 @@ export default function App() {
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="companies" element={<CompaniesPage />} />
             <Route path="projects" element={<ProjectsListPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="clients" element={<ClientsPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
             <Route path="trash" element={<TrashPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
