@@ -615,6 +615,10 @@ function PaymentForm({ initial, onSubmit, onCancel }: {
   const [name, setName] = useState(initial?.name ?? "");
   const [expected, setExpected] = useState(initial?.expected_amount_cents ?? 0);
   const [expectedDate, setExpectedDate] = useState(initial?.expected_date ?? "");
+  const [actualAmount, setActualAmount] = useState(
+    initial?.actual_amount_cents ?? initial?.expected_amount_cents ?? 0
+  );
+  const [actualReceivedAt, setActualReceivedAt] = useState(initial?.actual_received_at ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [busy, setBusy] = useState(false);
 
@@ -622,10 +626,14 @@ function PaymentForm({ initial, onSubmit, onCancel }: {
     if (!name.trim()) return toast.error(t("payment.nameRequired"));
     setBusy(true);
     try {
+      // A receipt exists only when a received date is set; clearing the date un-receives.
+      const received = !!actualReceivedAt;
       await onSubmit({
         name: name.trim(),
         expected_amount_cents: expected,
         expected_date: expectedDate || null,
+        actual_amount_cents: received ? actualAmount : null,
+        actual_received_at: received ? actualReceivedAt : null,
         notes: notes.trim() || null,
       });
     } finally { setBusy(false); }
@@ -640,6 +648,12 @@ function PaymentForm({ initial, onSubmit, onCancel }: {
           <MoneyInput value={expected} onChange={setExpected} /></div>
         <div className="space-y-1"><Label>{t("payment.expectedDate")}</Label>
           <Input type="date" value={expectedDate ?? ""} onChange={(e) => setExpectedDate(e.target.value)} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1"><Label>{t("payment.actualAmount")}</Label>
+          <MoneyInput value={actualAmount} onChange={setActualAmount} /></div>
+        <div className="space-y-1"><Label>{t("payment.actualReceivedAt")}</Label>
+          <Input type="date" value={actualReceivedAt ?? ""} onChange={(e) => setActualReceivedAt(e.target.value)} /></div>
       </div>
       <div className="space-y-1"><Label>{t("payment.notes")}</Label>
         <Textarea value={notes ?? ""} onChange={(e) => setNotes(e.target.value)} /></div>
