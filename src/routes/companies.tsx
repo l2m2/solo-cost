@@ -84,8 +84,6 @@ export default function CompaniesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t("nav.companies")}</h1>
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("company.create")}</Button></DialogTrigger>
           <DialogContent>
@@ -96,7 +94,6 @@ export default function CompaniesPage() {
             />
           </DialogContent>
         </Dialog>
-      </div>
 
       {list.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("company.empty")}</CardContent></Card>

@@ -31,8 +31,6 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t("category.title")}</h1>
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("category.create")}</Button></DialogTrigger>
           <DialogContent>
@@ -50,7 +48,6 @@ export default function CategoriesPage() {
             />
           </DialogContent>
         </Dialog>
-      </div>
 
       {list.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("category.empty")}</CardContent></Card>

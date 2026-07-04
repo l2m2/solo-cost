@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,60 +166,73 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {t("settings.backup.sectionTitle")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-sm">
-            {t("settings.backup.statusLabel")}：
-            <span className="ml-2 font-medium">
-              {status?.last_backup_at ?? t("settings.backup.never")}
-            </span>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {t("settings.backup.count", { n: status?.auto_count ?? 0 })}
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button onClick={doCreate} disabled={busy}>
-              {busy ? t("settings.backup.backingUp") : t("settings.backup.runNow")}
-            </Button>
-            <Button variant="outline" onClick={doExport} disabled={busy}>
-              {t("settings.backup.exportPlaintext")}
-            </Button>
-            <Button variant="outline" onClick={() => setOpenRestore(true)} disabled={busy}>
-              {t("settings.backup.restore")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      {list.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("settings.backup.backupHistory")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            {list.map((b) => (
-              <div
-                key={b.absolute_path}
-                className="flex items-center justify-between border-b py-2 last:border-b-0"
-              >
-                <div>
-                  <div>{b.created_at}</div>
-                  <div className="text-xs text-muted-foreground">{b.file_name}</div>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {(b.size_bytes / 1024).toFixed(0)} KB
-                </div>
+      <Tabs defaultValue="backup">
+        <TabsList>
+          <TabsTrigger value="backup">{t("settings.backup.sectionTitle")}</TabsTrigger>
+          <TabsTrigger value="companies">{t("nav.companies")}</TabsTrigger>
+          <TabsTrigger value="categories">{t("nav.categories")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="backup" className="mt-4 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {t("settings.backup.sectionTitle")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm">
+                {t("settings.backup.statusLabel")}：
+                <span className="ml-2 font-medium">
+                  {status?.last_backup_at ?? t("settings.backup.never")}
+                </span>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-      <CompaniesPage />
-      <CategoriesPage />
+              <div className="text-sm text-muted-foreground">
+                {t("settings.backup.count", { n: status?.auto_count ?? 0 })}
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button onClick={doCreate} disabled={busy}>
+                  {busy ? t("settings.backup.backingUp") : t("settings.backup.runNow")}
+                </Button>
+                <Button variant="outline" onClick={doExport} disabled={busy}>
+                  {t("settings.backup.exportPlaintext")}
+                </Button>
+                <Button variant="outline" onClick={() => setOpenRestore(true)} disabled={busy}>
+                  {t("settings.backup.restore")}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          {list.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t("settings.backup.backupHistory")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                {list.map((b) => (
+                  <div
+                    key={b.absolute_path}
+                    className="flex items-center justify-between border-b py-2 last:border-b-0"
+                  >
+                    <div>
+                      <div>{b.created_at}</div>
+                      <div className="text-xs text-muted-foreground">{b.file_name}</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {(b.size_bytes / 1024).toFixed(0)} KB
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        <TabsContent value="companies" className="mt-4">
+          <CompaniesPage />
+        </TabsContent>
+        <TabsContent value="categories" className="mt-4">
+          <CategoriesPage />
+        </TabsContent>
+      </Tabs>
       <RestoreDialog open={openRestore} onClose={() => setOpenRestore(false)} />
     </div>
   );
