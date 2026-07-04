@@ -307,12 +307,20 @@ export interface ImportReport {
   failed: { row_no: number; zentao_id: string; error: string }[];
 }
 
+export interface YearReceiptRow {
+  project_id: number;
+  project_name: string;
+  name: string;
+  amount_inclusive_cents: number;
+  received_at: string;
+}
 export interface DashYearRow {
   year: number;
   received_exclusive_cents: number;
   general_cost_cents: number;
   commission_cents: number;
   net_cents: number;
+  receipts: YearReceiptRow[];
 }
 export interface DashStatusRow {
   status: string;

@@ -4,12 +4,22 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize)]
+pub struct YearReceiptRow {
+    pub project_id: i64,
+    pub project_name: String,
+    pub name: String, // payment node name
+    pub amount_inclusive_cents: i64,
+    pub received_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct YearRow {
     pub year: i32,
     pub received_exclusive_cents: i64,
     pub general_cost_cents: i64,
     pub commission_cents: i64,
     pub net_cents: i64,
+    pub receipts: Vec<YearReceiptRow>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -148,6 +158,7 @@ pub fn company_dashboard(
 
     let mut year_recv_exc: HashMap<i32, i64> = HashMap::new();
     let mut year_commission: HashMap<i32, i64> = HashMap::new();
+    let mut year_receipts: HashMap<i32, Vec<YearReceiptRow>> = HashMap::new();
     let mut year_seen: HashSet<i32> = HashSet::new();
     let mut status_count: HashMap<String, i64> = HashMap::new();
     let mut status_inc: HashMap<String, i64> = HashMap::new();
@@ -157,7 +168,7 @@ pub fn company_dashboard(
     let mut project_ranks: Vec<RankRow> = Vec::new();
 
     let mut paystmt = conn.prepare(
-        "SELECT actual_amount_cents, actual_received_at
+        "SELECT name, actual_amount_cents, actual_received_at
          FROM contract_payments
          WHERE project_id = ?1 AND deleted_at IS NULL AND actual_received_at IS NOT NULL",
     )?;
@@ -172,10 +183,13 @@ pub fn company_dashboard(
         let exc = if p.inclusive { (p.contract as f64 / one_plus).round() as i64 } else { p.contract };
         let general: i64 = coststmt.query_row([p.id], |r| r.get(0))?;
 
-        let pays: Vec<(i64, String)> = paystmt
-            .query_map([p.id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
+        // (node_name, amount_inclusive, received_at)
+        let pays: Vec<(String, i64, String)> = paystmt
+            .query_map([p.id], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?))
+            })?
             .collect::<rusqlite::Result<_>>()?;
-        let recv_inc: i64 = pays.iter().map(|(a, _)| *a).sum();
+        let recv_inc: i64 = pays.iter().map(|(_, a, _)| *a).sum();
         let recv_exc: i64 = (recv_inc as f64 / one_plus).round() as i64;
 
         let comm_potential = match p.comm_mode.as_str() {
@@ -202,10 +216,17 @@ pub fn company_dashboard(
 
         // per-year received for this project
         let mut proj_year_inc: HashMap<i32, i64> = HashMap::new();
-        for (amt, date) in &pays {
+        for (node_name, amt, date) in &pays {
             if date.len() >= 4 {
                 if let Ok(y) = date[0..4].parse::<i32>() {
                     *proj_year_inc.entry(y).or_insert(0) += *amt;
+                    year_receipts.entry(y).or_default().push(YearReceiptRow {
+                        project_id: p.id,
+                        project_name: p.name.clone(),
+                        name: node_name.clone(),
+                        amount_inclusive_cents: *amt,
+                        received_at: date.clone(),
+                    });
                 }
             }
         }
@@ -246,12 +267,15 @@ pub fn company_dashboard(
         let recv_exc = *year_recv_exc.get(&y).unwrap_or(&0);
         let gcost = *cost_by_year.get(&y).unwrap_or(&0);
         let comm = *year_commission.get(&y).unwrap_or(&0);
+        let mut receipts = year_receipts.remove(&y).unwrap_or_default();
+        receipts.sort_by(|a, b| a.received_at.cmp(&b.received_at));
         out.by_year.push(YearRow {
             year: y,
             received_exclusive_cents: recv_exc,
             general_cost_cents: gcost,
             commission_cents: comm,
             net_cents: recv_exc - gcost - comm,
+            receipts,
         });
     }
 
@@ -406,6 +430,16 @@ mod tests {
         assert_eq!(d.by_year[1].received_exclusive_cents, 800_000);
         assert_eq!(d.by_year[1].commission_cents, 50_000);
         assert_eq!(d.by_year[1].net_cents, 730_000);
+
+        // by_year receipts: node-level breakdown, sorted by received_at
+        assert_eq!(d.by_year[0].receipts.len(), 1);
+        assert_eq!(d.by_year[0].receipts[0].name, "一期");
+        assert_eq!(d.by_year[0].receipts[0].amount_inclusive_cents, 400_000);
+        assert_eq!(d.by_year[1].receipts.len(), 2);
+        assert_eq!(d.by_year[1].receipts[0].name, "二期"); // 2026-02-01 before 2026-04-01
+        assert_eq!(d.by_year[1].receipts[1].name, "全款");
+        let y2026_sum: i64 = d.by_year[1].receipts.iter().map(|r| r.amount_inclusive_cents).sum();
+        assert_eq!(y2026_sum, 800_000); // matches year received (含税)
 
         // by_status ordered
         assert_eq!(d.by_status.len(), 2);

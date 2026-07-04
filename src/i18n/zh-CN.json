@@ -316,6 +316,8 @@
     "netRealized": "已收到手",
     "netFormula": "不含税 − 提成 − 非人力成本",
     "netByYear": "按年到手（叠加已收对照）",
+    "viewYearDetail": "点击查看当年到手明细",
+    "yearDetailTitle": "{{year}} 年到手明细",
     "netLabel": "到手",
     "receivedLabel": "已收",
     "statusDist": "项目状态分布",

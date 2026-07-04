@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useCompanyStore } from "@/stores/company";
@@ -6,12 +6,15 @@ import { useDashboardStore } from "@/stores/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatCNY } from "@/lib/money";
 import { statusLabel } from "@/lib/status";
-import type { RankRow } from "@/types";
+import type { RankRow, DashYearRow } from "@/types";
 
 const BUCKET_CLASS: Record<string, string> = {
   overdue: "bg-red-100 text-red-700",
@@ -65,6 +68,7 @@ export default function DashboardPage() {
   const { t } = useTranslation();
   const currentId = useCompanyStore((s) => s.currentId);
   const { data, loadedForCompany, loadFor } = useDashboardStore();
+  const [openYear, setOpenYear] = useState<DashYearRow | null>(null);
 
   useEffect(() => {
     if (currentId != null && loadedForCompany !== currentId) loadFor(currentId);
@@ -114,7 +118,13 @@ export default function DashboardPage() {
               {data.by_year.length === 0 ? (
                 <div className="text-sm text-muted-foreground">{t("dashboard.empty")}</div>
               ) : data.by_year.map((y) => (
-                <div key={y.year} className="space-y-1">
+                <button
+                  key={y.year}
+                  type="button"
+                  className="block w-full space-y-1 rounded p-1 text-left hover:bg-muted/50"
+                  title={t("dashboard.viewYearDetail")}
+                  onClick={() => setOpenYear(y)}
+                >
                   <div className="flex justify-between text-xs">
                     <span>{y.year}</span>
                     <span className="text-muted-foreground">
@@ -127,7 +137,7 @@ export default function DashboardPage() {
                   <div className="h-2 overflow-hidden rounded bg-muted">
                     <div className="h-full bg-emerald-500" style={{ width: pct(y.net_cents, maxYear) }} />
                   </div>
-                </div>
+                </button>
               ))}
             </CardContent>
           </Card>
@@ -194,6 +204,58 @@ export default function DashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!openYear} onOpenChange={(o) => !o && setOpenYear(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{openYear ? t("dashboard.yearDetailTitle", { year: openYear.year }) : ""}</DialogTitle>
+          </DialogHeader>
+          {openYear && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-4 gap-2 text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground">{t("dashboard.received")}</div>
+                  <div className="font-medium">{formatCNY(openYear.received_exclusive_cents)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">{t("financial.generalCost")}</div>
+                  <div className="font-medium">−{formatCNY(openYear.general_cost_cents)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">{t("financial.commission")}</div>
+                  <div className="font-medium">−{formatCNY(openYear.commission_cents)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">{t("dashboard.netLabel")}</div>
+                  <div className="font-semibold">{formatCNY(openYear.net_cents)}</div>
+                </div>
+              </div>
+              <Table compact>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-28">{t("dashboard.dueDate")}</TableHead>
+                    <TableHead>{t("dashboard.project")}</TableHead>
+                    <TableHead>{t("payment.name")}</TableHead>
+                    <TableHead className="text-right w-32">{t("payment.actualAmount")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {openYear.receipts.length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
+                  ) : openYear.receipts.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="whitespace-nowrap">{r.received_at}</TableCell>
+                      <TableCell>{r.project_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{r.name}</TableCell>
+                      <TableCell className="text-right">{formatCNY(r.amount_inclusive_cents)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
