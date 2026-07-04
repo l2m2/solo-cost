@@ -528,7 +528,7 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
                 <TableHead className="text-right w-32">{t("payment.expectedAmount")}</TableHead>
                 <TableHead className="w-28">{t("payment.actualReceivedAt")}</TableHead>
                 <TableHead className="text-right w-32">{t("payment.actualAmount")}</TableHead>
-                <TableHead className="w-44 text-right">操作</TableHead>
+                <TableHead className="w-56 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

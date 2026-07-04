@@ -341,6 +341,7 @@ export interface DashStatusRow {
 export interface DashReceivableRow {
   project_id: number;
   project_name: string;
+  client_name: string;
   name: string;
   expected_amount_cents: number;
   expected_date: string;

@@ -194,19 +194,21 @@ export default function DashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-28">{t("dashboard.dueDate")}</TableHead>
-                    <TableHead>{t("dashboard.project")}</TableHead>
-                    <TableHead className="w-20">{t("payment.name")}</TableHead>
+                    <TableHead className="min-w-32">{t("dashboard.project")}</TableHead>
+                    <TableHead className="min-w-20">{t("dashboard.client")}</TableHead>
+                    <TableHead className="min-w-24">{t("payment.name")}</TableHead>
                     <TableHead className="text-right w-36 whitespace-nowrap">{t("payment.expectedAmount")}</TableHead>
                     <TableHead className="w-24">{t("dashboard.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.receivables.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="p-4 text-sm text-muted-foreground">{t("dashboard.noReceivables")}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="p-4 text-sm text-muted-foreground">{t("dashboard.noReceivables")}</TableCell></TableRow>
                   ) : data.receivables.map((r, i) => (
                     <TableRow key={i}>
                       <TableCell className="whitespace-nowrap">{r.expected_date}</TableCell>
                       <TableCell>{r.project_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{r.client_name || "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{r.name}</TableCell>
                       <TableCell className="text-right">{formatCNY(r.expected_amount_cents)}</TableCell>
                       <TableCell>
@@ -251,8 +253,8 @@ export default function DashboardPage() {
               <Table compact>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t("dashboard.project")}</TableHead>
-                    <TableHead>{t("payment.name")}</TableHead>
+                    <TableHead className="min-w-32">{t("dashboard.project")}</TableHead>
+                    <TableHead className="min-w-24">{t("payment.name")}</TableHead>
                     <TableHead className="text-right w-32">{t("payment.actualAmount")}</TableHead>
                     <TableHead className="w-28">{t("dashboard.dueDate")}</TableHead>
                     <TableHead className="text-right w-28">{t("financial.commission")}</TableHead>

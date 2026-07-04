@@ -307,6 +307,7 @@
     "tabOverview": "总览",
     "tabRanking": "分布 & 排行",
     "tabReceivables": "应收",
+    "client": "客户",
     "contractScope": "合同口径（全量潜在）",
     "receivedScope": "已收口径（真实落袋）",
     "contractTotal": "合同总额(含税)",

@@ -46,6 +46,7 @@ pub struct StatusRow {
 pub struct ReceivableRow {
     pub project_id: i64,
     pub project_name: String,
+    pub client_name: String,
     pub name: String,
     pub expected_amount_cents: i64,
     pub expected_date: String,
@@ -347,8 +348,10 @@ pub fn company_dashboard(
 
     // receivables
     let mut rstmt = conn.prepare(
-        "SELECT cp.project_id, p.name, cp.name, cp.expected_amount_cents, cp.expected_date
-         FROM contract_payments cp JOIN projects p ON p.id = cp.project_id
+        "SELECT cp.project_id, p.name, COALESCE(c.name, ''), cp.name, cp.expected_amount_cents, cp.expected_date
+         FROM contract_payments cp
+         JOIN projects p ON p.id = cp.project_id
+         LEFT JOIN clients c ON c.id = p.client_id
          WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND cp.deleted_at IS NULL
            AND cp.actual_received_at IS NULL AND cp.expected_date IS NOT NULL
          ORDER BY cp.expected_date ASC",
@@ -356,11 +359,11 @@ pub fn company_dashboard(
     let rows = rstmt.query_map([company_id], |r| {
         Ok((
             r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
-            r.get::<_, i64>(3)?, r.get::<_, String>(4)?,
+            r.get::<_, String>(3)?, r.get::<_, i64>(4)?, r.get::<_, String>(5)?,
         ))
     })?;
     for row in rows {
-        let (pid, pname, name, amt, edate) = row?;
+        let (pid, pname, cname, name, amt, edate) = row?;
         let bucket = if edate.as_str() < today {
             "overdue"
         } else if edate.as_str() <= soon_cutoff.as_str() {
@@ -370,7 +373,7 @@ pub fn company_dashboard(
         };
         out.receivables_outstanding_cents += amt;
         out.receivables.push(ReceivableRow {
-            project_id: pid, project_name: pname, name,
+            project_id: pid, project_name: pname, client_name: cname, name,
             expected_amount_cents: amt, expected_date: edate, bucket: bucket.to_string(),
         });
     }
