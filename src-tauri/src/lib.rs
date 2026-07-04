@@ -64,6 +64,7 @@ pub fn run() {
             commands::costs::update_cost_entry,
             commands::costs::delete_cost_entry,
             commands::costs::get_project_cost_summary,
+            commands::dashboard::get_dashboard,
             commands::trash::list_trash,
             commands::trash::restore_trash_item,
             commands::trash::purge_trash_item,
