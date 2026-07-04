@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "solo-cost",
   "version": "0.2.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.l2m2.solo-cost",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
