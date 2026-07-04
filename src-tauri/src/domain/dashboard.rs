@@ -1,7 +1,7 @@
 use crate::error::AppResult;
 use rusqlite::Connection;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct YearRow {
@@ -148,7 +148,7 @@ pub fn company_dashboard(
 
     let mut year_recv_exc: HashMap<i32, i64> = HashMap::new();
     let mut year_commission: HashMap<i32, i64> = HashMap::new();
-    let mut year_seen: HashMap<i32, ()> = HashMap::new();
+    let mut year_seen: HashSet<i32> = HashSet::new();
     let mut status_count: HashMap<String, i64> = HashMap::new();
     let mut status_inc: HashMap<String, i64> = HashMap::new();
     let mut client_net: HashMap<i64, i64> = HashMap::new();
@@ -223,7 +223,7 @@ pub fn company_dashboard(
             };
             *year_recv_exc.entry(*y).or_insert(0) += y_exc;
             *year_commission.entry(*y).or_insert(0) += y_comm;
-            year_seen.insert(*y, ());
+            year_seen.insert(*y);
         }
 
         let proj_net = recv_exc - comm_realized - general;
@@ -239,7 +239,7 @@ pub fn company_dashboard(
     out.outstanding_cents = out.contract_total_inclusive_cents - out.received_inclusive_cents;
 
     // by_year: union of years from received and cost
-    let mut years: Vec<i32> = year_seen.keys().chain(cost_by_year.keys()).cloned().collect();
+    let mut years: Vec<i32> = year_seen.iter().chain(cost_by_year.keys()).cloned().collect();
     years.sort_unstable();
     years.dedup();
     for y in years {
@@ -461,5 +461,38 @@ mod tests {
         assert_eq!(d.receivables[0].bucket, "overdue");
         assert_eq!(d.receivables[1].bucket, "soon");   // within +30d (<=2026-08-03)
         assert_eq!(d.receivables[2].bucket, "future");
+    }
+
+    #[test]
+    fn fixed_commission_prorated_across_years() {
+        let dir = tempdir().unwrap();
+        let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        // fixed + settled commission ¥1000, tax 0, contract 含税 ¥10000
+        conn.execute(
+            "INSERT INTO projects(company_id, name, status,
+                 contract_amount_cents, contract_amount_is_tax_inclusive, tax_rate,
+                 commission_mode, commission_amount_cents, commission_settled)
+             VALUES(1, 'PF', 'settled', 1000000, 1, 0.0, 'fixed', 100000, 1)",
+            [],
+        ).unwrap();
+        // receipts: 2025 ¥6000, 2026 ¥4000 (total ¥10000)
+        conn.execute(
+            "INSERT INTO contract_payments(project_id, name, expected_amount_cents,
+                 actual_amount_cents, actual_received_at)
+             VALUES(1,'一期',600000,600000,'2025-05-01'),
+                    (1,'二期',400000,400000,'2026-05-01')",
+            [],
+        ).unwrap();
+        let d = company_dashboard(&conn, 1, "2026-07-04").unwrap();
+        assert_eq!(d.commission_realized_cents, 100_000);
+        assert_eq!(d.by_year.len(), 2);
+        assert_eq!(d.by_year[0].year, 2025);
+        assert_eq!(d.by_year[0].commission_cents, 60_000); // 600000/1000000 * 100000
+        assert_eq!(d.by_year[1].year, 2026);
+        assert_eq!(d.by_year[1].commission_cents, 40_000); // 400000/1000000 * 100000
+        // per-year commission sums to realized
+        let sum: i64 = d.by_year.iter().map(|y| y.commission_cents).sum();
+        assert_eq!(sum, d.commission_realized_cents);
     }
 }
