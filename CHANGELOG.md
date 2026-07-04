@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+## 0.2.1 (2026-07-04)
 
 ### Changed
 - 任务开始/完成改为弹框确认：点击「开始」或「完成」按钮时弹出对话框，默认填入当前日期时间，支持修改，同时可编辑任务描述
