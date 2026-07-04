@@ -18,7 +18,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MoneyInput } from "@/components/forms/MoneyInput";
-import { HoursInput } from "@/components/forms/HoursInput";
 import { formatCNY } from "@/lib/money";
 import { STATUS_OPTIONS, statusBadgeClass, statusLabel } from "@/lib/status";
 import { call } from "@/lib/ipc";
@@ -702,6 +701,7 @@ function MarkReceivedForm({ initial, onSubmit, onCancel }: {
 function TasksPanel({ projectId, companyId }: { projectId: number; companyId: number }) {
   const { t } = useTranslation();
   const { byProject, loadFor, create, update, setStatus, softDelete } = useTasksStore();
+  const { create: createTimelog } = useTimelogsStore();
   const {
     byProject: modulesByProject,
     loadedForProject: modulesLoadedFor,
@@ -1034,8 +1034,21 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               task={completingTask}
               label="完成时间"
               fieldKey="completed_at"
+              existingHours={(tasks.find((t) => t.id === completingTask.id))?.actual_hours ?? 0}
               onSubmit={async (input) => {
-                try { await update(completingTask.id, { ...input, status: "done" }, projectId); setCompletingTask(null); }
+                try {
+                  await update(completingTask.id, { ...input, status: "done" }, projectId);
+                  const h = (input as Record<string, unknown>).hours;
+                  if (typeof h === "number" && h > 0 && completingTask.assignee_id != null) {
+                    await createTimelog({
+                      task_id: completingTask.id,
+                      member_id: completingTask.assignee_id,
+                      work_date: new Date().toISOString().slice(0, 10),
+                      hours: h,
+                    }, projectId);
+                  }
+                  setCompletingTask(null);
+                }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onCancel={() => setCompletingTask(null)}
@@ -1047,18 +1060,21 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   );
 }
 
-function StatusTransitionDialog({ task, label, fieldKey, onSubmit, onCancel }: {
+function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit, onCancel }: {
   task: Task;
   label: string;
   fieldKey: "started_at" | "completed_at";
-  onSubmit: (input: { description: string | null } & Record<string, string | null>) => Promise<void>;
+  existingHours?: number;
+  onSubmit: (input: { description: string | null; hours?: number } & Record<string, string | null>) => Promise<void>;
   onCancel: () => void;
 }) {
   const [datetime, setDatetime] = useState(
     task[fieldKey] ? task[fieldKey]!.replace(" ", "T").slice(0, 16) : nowDatetimeLocal()
   );
   const [description, setDescription] = useState(task.description ?? "");
+  const [hours, setHours] = useState(0);
   const [busy, setBusy] = useState(false);
+  const showHours = fieldKey === "completed_at";
 
   const handleSubmit = async () => {
     setBusy(true);
@@ -1069,6 +1085,9 @@ function StatusTransitionDialog({ task, label, fieldKey, onSubmit, onCancel }: {
         description: description.trim() || null,
       };
       payload[fieldKey] = stored;
+      if (showHours && hours > 0) {
+        (payload as Record<string, unknown>).hours = hours;
+      }
       await onSubmit(payload);
     } finally { setBusy(false); }
   };
@@ -1084,6 +1103,24 @@ function StatusTransitionDialog({ task, label, fieldKey, onSubmit, onCancel }: {
           onChange={(e) => setDatetime(e.target.value)}
         />
       </div>
+      {showHours && (
+        <div className="space-y-1">
+          <Label>本次工时 (h)<span className="text-muted-foreground font-normal"> — 已有工时 {(existingHours ?? 0)}h</span></Label>
+          <Input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            max="24"
+            step="0.25"
+            value={hours === 0 ? "" : String(hours)}
+            placeholder="0"
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 0 && n <= 24) setHours(n);
+            }}
+          />
+        </div>
+      )}
       <div className="space-y-1">
         <Label>描述</Label>
         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
@@ -1386,7 +1423,18 @@ function TimeLogForm({ taskId, members, onSubmit, onCancel }: {
       </div>
       <div className="space-y-1">
         <Label>{t("timelog.hours")}</Label>
-        <HoursInput value={hours} onChange={setHours} />
+        <Input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          max="24"
+          step="0.25"
+          value={hours}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n >= 0 && n <= 24) setHours(n);
+          }}
+        />
       </div>
       <div className="space-y-1">
         <Label>{t("timelog.notes")}</Label>
@@ -1419,7 +1467,18 @@ function TimeLogEditForm({ initial, onSubmit, onCancel }: {
       </div>
       <div className="space-y-1">
         <Label>{t("timelog.hours")}</Label>
-        <HoursInput value={hours} onChange={setHours} />
+        <Input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          max="24"
+          step="0.25"
+          value={hours}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n >= 0 && n <= 24) setHours(n);
+          }}
+        />
       </div>
       <div className="space-y-1">
         <Label>{t("timelog.notes")}</Label>
