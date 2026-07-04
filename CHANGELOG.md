@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+## 0.2.0 (2026-07-04)
 
 ### Added
 - 客户成为独立实体：新增「客户」菜单页，可维护客户名、联系人、联系方式、税号、开票抬头、备注；同一公司内客户名不重复
