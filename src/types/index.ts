@@ -314,12 +314,21 @@ export interface YearReceiptRow {
   amount_inclusive_cents: number;
   received_at: string;
 }
+export interface YearProjectRow {
+  project_id: number;
+  project_name: string;
+  received_exclusive_cents: number;
+  general_cost_cents: number;
+  commission_cents: number;
+  net_cents: number;
+}
 export interface DashYearRow {
   year: number;
   received_exclusive_cents: number;
   general_cost_cents: number;
   commission_cents: number;
   net_cents: number;
+  projects: YearProjectRow[];
   receipts: YearReceiptRow[];
 }
 export interface DashStatusRow {

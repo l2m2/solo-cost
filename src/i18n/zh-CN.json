@@ -303,6 +303,7 @@
     "laborByModuleSummary": "合计 {{hours}}h · {{cost}}"
   },
   "dashboard": {
+    "refresh": "刷新",
     "tabOverview": "总览",
     "tabRanking": "分布 & 排行",
     "tabReceivables": "应收",
@@ -318,6 +319,9 @@
     "netByYear": "按年到手（叠加已收对照）",
     "viewYearDetail": "点击查看当年到手明细",
     "yearDetailTitle": "{{year}} 年到手明细",
+    "byProject": "按项目",
+    "byReceipt": "按收款节点",
+    "receivedExc": "实收(不含税)",
     "netLabel": "到手",
     "receivedLabel": "已收",
     "statusDist": "项目状态分布",

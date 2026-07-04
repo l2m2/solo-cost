@@ -13,12 +13,23 @@ pub struct YearReceiptRow {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct YearProjectRow {
+    pub project_id: i64,
+    pub project_name: String,
+    pub received_exclusive_cents: i64,
+    pub general_cost_cents: i64,
+    pub commission_cents: i64,
+    pub net_cents: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct YearRow {
     pub year: i32,
     pub received_exclusive_cents: i64,
     pub general_cost_cents: i64,
     pub commission_cents: i64,
     pub net_cents: i64,
+    pub projects: Vec<YearProjectRow>,
     pub receipts: Vec<YearReceiptRow>,
 }
 
@@ -137,6 +148,22 @@ pub fn company_dashboard(
         cost_by_year.insert(y, amt);
     }
 
+    // company-wide non-labor cost by (project, year), for the per-project year breakdown
+    let mut cost_by_proj: HashMap<i64, HashMap<i32, i64>> = HashMap::new();
+    let mut cpstmt = conn.prepare(
+        "SELECT ce.project_id, CAST(substr(ce.incurred_at,1,4) AS INTEGER) AS y,
+                COALESCE(SUM(ce.amount_cents),0)
+         FROM cost_entries ce JOIN projects p ON p.id = ce.project_id
+         WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND ce.deleted_at IS NULL
+         GROUP BY ce.project_id, y",
+    )?;
+    for row in cpstmt.query_map([company_id], |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)? as i32, r.get::<_, i64>(2)?))
+    })? {
+        let (pid, y, amt) = row?;
+        cost_by_proj.entry(pid).or_default().insert(y, amt);
+    }
+
     let mut out = DashboardSummary {
         contract_total_inclusive_cents: 0,
         revenue_exclusive_cents: 0,
@@ -159,6 +186,7 @@ pub fn company_dashboard(
     let mut year_recv_exc: HashMap<i32, i64> = HashMap::new();
     let mut year_commission: HashMap<i32, i64> = HashMap::new();
     let mut year_receipts: HashMap<i32, Vec<YearReceiptRow>> = HashMap::new();
+    let mut year_projects: HashMap<i32, Vec<YearProjectRow>> = HashMap::new();
     let mut year_seen: HashSet<i32> = HashSet::new();
     let mut status_count: HashMap<String, i64> = HashMap::new();
     let mut status_inc: HashMap<String, i64> = HashMap::new();
@@ -230,21 +258,39 @@ pub fn company_dashboard(
                 }
             }
         }
-        for (y, y_inc) in &proj_year_inc {
-            let y_exc = (*y_inc as f64 / one_plus).round() as i64;
+        // Years this project touches: received years ∪ years with non-labor cost.
+        let proj_costs = cost_by_proj.get(&p.id);
+        let mut proj_years: HashSet<i32> = proj_year_inc.keys().copied().collect();
+        if let Some(pc) = proj_costs {
+            for y in pc.keys() { proj_years.insert(*y); }
+        }
+        for y in &proj_years {
+            let y_inc = proj_year_inc.get(y).copied().unwrap_or(0);
+            let y_exc = (y_inc as f64 / one_plus).round() as i64;
             let y_comm = match p.comm_mode.as_str() {
-                "rate" => (*y_inc as f64 * p.comm_rate.unwrap_or(0.0)).round() as i64,
+                "rate" => (y_inc as f64 * p.comm_rate.unwrap_or(0.0)).round() as i64,
                 "fixed" => {
                     let fixed = if p.comm_settled { p.comm_amount.unwrap_or(0) } else { 0 };
                     if recv_inc > 0 {
-                        ((*y_inc as f64 / recv_inc as f64) * fixed as f64).round() as i64
+                        ((y_inc as f64 / recv_inc as f64) * fixed as f64).round() as i64
                     } else { 0 }
                 }
                 _ => 0,
             };
+            let y_cost = proj_costs.and_then(|pc| pc.get(y)).copied().unwrap_or(0);
+            // year-level totals
             *year_recv_exc.entry(*y).or_insert(0) += y_exc;
             *year_commission.entry(*y).or_insert(0) += y_comm;
             year_seen.insert(*y);
+            // per-project-in-year breakdown
+            year_projects.entry(*y).or_default().push(YearProjectRow {
+                project_id: p.id,
+                project_name: p.name.clone(),
+                received_exclusive_cents: y_exc,
+                general_cost_cents: y_cost,
+                commission_cents: y_comm,
+                net_cents: y_exc - y_cost - y_comm,
+            });
         }
 
         let proj_net = recv_exc - comm_realized - general;
@@ -269,12 +315,15 @@ pub fn company_dashboard(
         let comm = *year_commission.get(&y).unwrap_or(&0);
         let mut receipts = year_receipts.remove(&y).unwrap_or_default();
         receipts.sort_by(|a, b| a.received_at.cmp(&b.received_at));
+        let mut projects_y = year_projects.remove(&y).unwrap_or_default();
+        projects_y.sort_by(|a, b| b.net_cents.cmp(&a.net_cents));
         out.by_year.push(YearRow {
             year: y,
             received_exclusive_cents: recv_exc,
             general_cost_cents: gcost,
             commission_cents: comm,
             net_cents: recv_exc - gcost - comm,
+            projects: projects_y,
             receipts,
         });
     }
@@ -440,6 +489,23 @@ mod tests {
         assert_eq!(d.by_year[1].receipts[1].name, "全款");
         let y2026_sum: i64 = d.by_year[1].receipts.iter().map(|r| r.amount_inclusive_cents).sum();
         assert_eq!(y2026_sum, 800_000); // matches year received (含税)
+
+        // by_year per-project breakdown (sorted by net desc)
+        assert_eq!(d.by_year[0].projects.len(), 1); // 2025: only PA
+        assert_eq!(d.by_year[0].projects[0].project_name, "PA");
+        assert_eq!(d.by_year[0].projects[0].net_cents, 390_000);
+        assert_eq!(d.by_year[0].projects[0].commission_cents, 0);
+        assert_eq!(d.by_year[1].projects.len(), 2); // 2026: PB then PA
+        assert_eq!(d.by_year[1].projects[0].project_name, "PB");
+        assert_eq!(d.by_year[1].projects[0].commission_cents, 50_000);
+        assert_eq!(d.by_year[1].projects[0].net_cents, 450_000);
+        assert_eq!(d.by_year[1].projects[1].project_name, "PA");
+        assert_eq!(d.by_year[1].projects[1].net_cents, 280_000);
+        // per-project net & commission sum to the year totals
+        let net_sum: i64 = d.by_year[1].projects.iter().map(|p| p.net_cents).sum();
+        assert_eq!(net_sum, d.by_year[1].net_cents);
+        let comm_sum: i64 = d.by_year[1].projects.iter().map(|p| p.commission_cents).sum();
+        assert_eq!(comm_sum, d.by_year[1].commission_cents);
 
         // by_status ordered
         assert_eq!(d.by_status.len(), 2);

@@ -12,6 +12,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { formatCNY } from "@/lib/money";
 import { statusLabel } from "@/lib/status";
 import type { RankRow, DashYearRow } from "@/types";
@@ -69,6 +71,7 @@ export default function DashboardPage() {
   const currentId = useCompanyStore((s) => s.currentId);
   const { data, loadedForCompany, loadFor } = useDashboardStore();
   const [openYear, setOpenYear] = useState<DashYearRow | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (currentId != null && loadedForCompany !== currentId) loadFor(currentId);
@@ -87,7 +90,22 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">{t("nav.dashboard")}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">{t("nav.dashboard")}</h1>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={refreshing}
+          onClick={async () => {
+            setRefreshing(true);
+            try { await loadFor(currentId); }
+            finally { setRefreshing(false); }
+          }}
+        >
+          <RefreshCw className={`mr-1 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          {t("dashboard.refresh")}
+        </Button>
+      </div>
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">{t("dashboard.tabOverview")}</TabsTrigger>
@@ -214,7 +232,7 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <div className="grid grid-cols-4 gap-2 text-sm">
                 <div>
-                  <div className="text-xs text-muted-foreground">{t("dashboard.received")}</div>
+                  <div className="text-xs text-muted-foreground">{t("dashboard.receivedExc")}</div>
                   <div className="font-medium">{formatCNY(openYear.received_exclusive_cents)}</div>
                 </div>
                 <div>
@@ -230,6 +248,31 @@ export default function DashboardPage() {
                   <div className="font-semibold">{formatCNY(openYear.net_cents)}</div>
                 </div>
               </div>
+              <div className="text-xs font-medium text-muted-foreground">{t("dashboard.byProject")}</div>
+              <Table compact>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("dashboard.project")}</TableHead>
+                    <TableHead className="text-right w-28">{t("dashboard.receivedExc")}</TableHead>
+                    <TableHead className="text-right w-28">{t("financial.commission")}</TableHead>
+                    <TableHead className="text-right w-28">{t("dashboard.netLabel")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {openYear.projects.length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
+                  ) : openYear.projects.map((p) => (
+                    <TableRow key={p.project_id}>
+                      <TableCell>{p.project_name}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{formatCNY(p.received_exclusive_cents)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{formatCNY(p.commission_cents)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCNY(p.net_cents)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className="text-xs font-medium text-muted-foreground">{t("dashboard.byReceipt")}</div>
               <Table compact>
                 <TableHeader>
                   <TableRow>
