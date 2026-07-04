@@ -12,6 +12,7 @@ import { usePaymentsStore } from "./payments";
 import { useTasksStore } from "./tasks";
 import { useTimelogsStore } from "./timelogs";
 import { useBackupStore } from "./backup";
+import { useDashboardStore } from "./dashboard";
 
 type Status = "unknown" | "uninitialized" | "locked" | "unlocked" | "corrupted";
 
@@ -64,6 +65,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useTasksStore.getState().reset();
     useTimelogsStore.getState().reset();
     useBackupStore.getState().reset();
+    useDashboardStore.getState().reset();
     set({ status: "locked" });
   },
 }));

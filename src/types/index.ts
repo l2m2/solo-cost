@@ -306,3 +306,48 @@ export interface ImportReport {
   };
   failed: { row_no: number; zentao_id: string; error: string }[];
 }
+
+export interface DashYearRow {
+  year: number;
+  received_exclusive_cents: number;
+  general_cost_cents: number;
+  commission_cents: number;
+  net_cents: number;
+}
+export interface DashStatusRow {
+  status: string;
+  count: number;
+  contract_inclusive_cents: number;
+}
+export interface DashReceivableRow {
+  project_id: number;
+  project_name: string;
+  name: string;
+  expected_amount_cents: number;
+  expected_date: string;
+  bucket: string; // "overdue" | "soon" | "future"
+}
+export interface RankRow {
+  id: number;
+  name: string;
+  net_cents: number;
+  received_inclusive_cents: number;
+}
+export interface DashboardSummary {
+  contract_total_inclusive_cents: number;
+  revenue_exclusive_cents: number;
+  commission_potential_cents: number;
+  general_cost_cents: number;
+  net_potential_cents: number;
+  received_inclusive_cents: number;
+  received_exclusive_cents: number;
+  outstanding_cents: number;
+  commission_realized_cents: number;
+  net_realized_cents: number;
+  by_year: DashYearRow[];
+  by_status: DashStatusRow[];
+  receivables: DashReceivableRow[];
+  receivables_outstanding_cents: number;
+  top_clients: RankRow[];
+  top_projects: RankRow[];
+}
