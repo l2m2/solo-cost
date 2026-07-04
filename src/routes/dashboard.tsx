@@ -197,7 +197,7 @@ export default function DashboardPage() {
                     <TableHead>{t("dashboard.project")}</TableHead>
                     <TableHead>{t("payment.name")}</TableHead>
                     <TableHead className="text-right w-32">{t("payment.expectedAmount")}</TableHead>
-                    <TableHead className="w-20">{t("dashboard.status")}</TableHead>
+                    <TableHead className="w-24">{t("dashboard.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -210,7 +210,7 @@ export default function DashboardPage() {
                       <TableCell className="text-muted-foreground">{r.name}</TableCell>
                       <TableCell className="text-right">{formatCNY(r.expected_amount_cents)}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={BUCKET_CLASS[r.bucket] ?? ""}>
+                        <Badge variant="secondary" className={`whitespace-nowrap ${BUCKET_CLASS[r.bucket] ?? ""}`}>
                           {t(`dashboard.bucket.${r.bucket}`)}
                         </Badge>
                       </TableCell>
