@@ -224,7 +224,7 @@ export default function DashboardPage() {
       </Tabs>
 
       <Dialog open={!!openYear} onOpenChange={(o) => !o && setOpenYear(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{openYear ? t("dashboard.yearDetailTitle", { year: openYear.year }) : ""}</DialogTitle>
           </DialogHeader>
