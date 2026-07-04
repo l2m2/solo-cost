@@ -700,7 +700,7 @@ function MarkReceivedForm({ initial, onSubmit, onCancel }: {
 
 function TasksPanel({ projectId, companyId }: { projectId: number; companyId: number }) {
   const { t } = useTranslation();
-  const { byProject, loadFor, create, update, setStatus, softDelete } = useTasksStore();
+  const { byProject, loadFor, create, update, softDelete } = useTasksStore();
   const { create: createTimelog } = useTimelogsStore();
   const {
     byProject: modulesByProject,
@@ -1017,7 +1017,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               label="开始时间"
               fieldKey="started_at"
               onSubmit={async (input) => {
-                try { await update(startingTask.id, { ...input, status: "in_progress" }, projectId); setStartingTask(null); }
+                try { await update(startingTask.id, { ...input, status: "in_progress" } as TaskInput, projectId); setStartingTask(null); }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onCancel={() => setStartingTask(null)}
@@ -1037,7 +1037,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               existingHours={(tasks.find((t) => t.id === completingTask.id))?.actual_hours ?? 0}
               onSubmit={async (input) => {
                 try {
-                  await update(completingTask.id, { ...input, status: "done" }, projectId);
+                  await update(completingTask.id, { ...input, status: "done" } as TaskInput, projectId);
                   const h = (input as Record<string, unknown>).hours;
                   if (typeof h === "number" && h > 0 && completingTask.assignee_id != null) {
                     await createTimelog({
@@ -1065,7 +1065,7 @@ function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit
   label: string;
   fieldKey: "started_at" | "completed_at";
   existingHours?: number;
-  onSubmit: (input: { description: string | null; hours?: number } & Record<string, string | null>) => Promise<void>;
+  onSubmit: (input: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
 }) {
   const [datetime, setDatetime] = useState(
