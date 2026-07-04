@@ -195,8 +195,8 @@ export default function DashboardPage() {
                   <TableRow>
                     <TableHead className="w-28">{t("dashboard.dueDate")}</TableHead>
                     <TableHead>{t("dashboard.project")}</TableHead>
-                    <TableHead>{t("payment.name")}</TableHead>
-                    <TableHead className="text-right w-32">{t("payment.expectedAmount")}</TableHead>
+                    <TableHead className="w-20">{t("payment.name")}</TableHead>
+                    <TableHead className="text-right w-36 whitespace-nowrap">{t("payment.expectedAmount")}</TableHead>
                     <TableHead className="w-24">{t("dashboard.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
