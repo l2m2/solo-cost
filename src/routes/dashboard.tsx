@@ -232,8 +232,8 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <div className="grid grid-cols-4 gap-2 text-sm">
                 <div>
-                  <div className="text-xs text-muted-foreground">{t("dashboard.receivedExc")}</div>
-                  <div className="font-medium">{formatCNY(openYear.received_exclusive_cents)}</div>
+                  <div className="text-xs text-muted-foreground">{t("dashboard.received")}</div>
+                  <div className="font-medium">{formatCNY(openYear.received_inclusive_cents)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">{t("financial.generalCost")}</div>
@@ -248,51 +248,33 @@ export default function DashboardPage() {
                   <div className="font-semibold">{formatCNY(openYear.net_cents)}</div>
                 </div>
               </div>
-              <div className="text-xs font-medium text-muted-foreground">{t("dashboard.byProject")}</div>
               <Table compact>
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t("dashboard.project")}</TableHead>
-                    <TableHead className="text-right w-28">{t("dashboard.receivedExc")}</TableHead>
+                    <TableHead>{t("payment.name")}</TableHead>
+                    <TableHead className="text-right w-32">{t("payment.actualAmount")}</TableHead>
+                    <TableHead className="w-28">{t("dashboard.dueDate")}</TableHead>
                     <TableHead className="text-right w-28">{t("financial.commission")}</TableHead>
                     <TableHead className="text-right w-28">{t("dashboard.netLabel")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {openYear.projects.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
-                  ) : openYear.projects.map((p) => (
-                    <TableRow key={p.project_id}>
-                      <TableCell>{p.project_name}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{formatCNY(p.received_exclusive_cents)}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{formatCNY(p.commission_cents)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCNY(p.net_cents)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              <div className="text-xs font-medium text-muted-foreground">{t("dashboard.byReceipt")}</div>
-              <Table compact>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-28">{t("dashboard.dueDate")}</TableHead>
-                    <TableHead>{t("dashboard.project")}</TableHead>
-                    <TableHead>{t("payment.name")}</TableHead>
-                    <TableHead className="text-right w-32">{t("payment.actualAmount")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
                   {openYear.receipts.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
-                  ) : openYear.receipts.map((r, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="whitespace-nowrap">{r.received_at}</TableCell>
-                      <TableCell>{r.project_name}</TableCell>
-                      <TableCell className="text-muted-foreground">{r.name}</TableCell>
-                      <TableCell className="text-right">{formatCNY(r.amount_inclusive_cents)}</TableCell>
-                    </TableRow>
-                  ))}
+                    <TableRow><TableCell colSpan={6} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
+                  ) : openYear.receipts.map((r, i) => {
+                    const proj = openYear.projects.find((p) => p.project_id === r.project_id);
+                    return (
+                      <TableRow key={i}>
+                        <TableCell>{r.project_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{r.name}</TableCell>
+                        <TableCell className="text-right">{formatCNY(r.amount_inclusive_cents)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{r.received_at}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{proj ? formatCNY(proj.commission_cents) : "—"}</TableCell>
+                        <TableCell className="text-right font-medium">{proj ? formatCNY(proj.net_cents) : "—"}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

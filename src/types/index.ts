@@ -317,6 +317,7 @@ export interface YearReceiptRow {
 export interface YearProjectRow {
   project_id: number;
   project_name: string;
+  received_inclusive_cents: number;
   received_exclusive_cents: number;
   general_cost_cents: number;
   commission_cents: number;
@@ -324,6 +325,7 @@ export interface YearProjectRow {
 }
 export interface DashYearRow {
   year: number;
+  received_inclusive_cents: number;
   received_exclusive_cents: number;
   general_cost_cents: number;
   commission_cents: number;
