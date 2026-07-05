@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - 侧边栏底部显示当前应用版本号
 
+### Fixed
+- 修复开始或完成任务时会清空负责人、实际开始时间、预估工时、截止日期、所属模块等字段的问题
+
 ## 0.2.1 (2026-07-04)
 
 ### Added
