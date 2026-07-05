@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Added
+- 侧边栏底部显示当前应用版本号
+
 ## 0.2.1 (2026-07-04)
 
 ### Added
