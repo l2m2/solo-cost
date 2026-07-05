@@ -1080,13 +1080,23 @@ function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit
     setBusy(true);
     try {
       const stored = datetime ? datetime.replace("T", " ") : null;
-      const payload: Record<string, string | null> = {
+      // update_task does a full-row overwrite, so any TaskInput field omitted here
+      // would be written back as NULL. Preserve every existing field and only
+      // override the one time field this dialog transitions (started_at/completed_at).
+      const payload: Record<string, unknown> = {
         title: task.title,
         description: description.trim() || null,
+        assignee_id: task.assignee_id,
+        estimated_hours: task.estimated_hours,
+        due_date: task.due_date,
+        started_at: task.started_at,
+        completed_at: task.completed_at,
+        module_id: task.module_id,
+        external_ref: task.external_ref,
       };
       payload[fieldKey] = stored;
       if (showHours && hours > 0) {
-        (payload as Record<string, unknown>).hours = hours;
+        payload.hours = hours;
       }
       await onSubmit(payload);
     } finally { setBusy(false); }
