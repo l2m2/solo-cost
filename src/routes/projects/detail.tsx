@@ -1071,6 +1071,9 @@ function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit
   const [datetime, setDatetime] = useState(
     task[fieldKey] ? task[fieldKey]!.replace(" ", "T").slice(0, 16) : nowDatetimeLocal()
   );
+  const [startedAt, setStartedAt] = useState(
+    task.started_at ? task.started_at.replace(" ", "T").slice(0, 16) : ""
+  );
   const [description, setDescription] = useState(task.description ?? "");
   const [hours, setHours] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -1080,9 +1083,9 @@ function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit
     setBusy(true);
     try {
       const stored = datetime ? datetime.replace("T", " ") : null;
-      // update_task does a full-row overwrite, so any TaskInput field omitted here
-      // would be written back as NULL. Preserve every existing field and only
-      // override the one time field this dialog transitions (started_at/completed_at).
+      const storedStartedAt = showHours && startedAt
+        ? startedAt.replace("T", " ")
+        : null;
       const payload: Record<string, unknown> = {
         title: task.title,
         description: description.trim() || null,
@@ -1095,8 +1098,9 @@ function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit
         external_ref: task.external_ref,
       };
       payload[fieldKey] = stored;
-      if (showHours && hours > 0) {
-        payload.hours = hours;
+      if (showHours) {
+        if (storedStartedAt) payload.started_at = storedStartedAt;
+        if (hours > 0) payload.hours = hours;
       }
       await onSubmit(payload);
     } finally { setBusy(false); }
@@ -1105,6 +1109,16 @@ function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit
   return (
     <div className="space-y-3">
       <div className="text-sm text-muted-foreground">{task.title}</div>
+      {showHours && (
+        <div className="space-y-1">
+          <Label>开始时间</Label>
+          <Input
+            type="datetime-local"
+            value={startedAt}
+            onChange={(e) => setStartedAt(e.target.value)}
+          />
+        </div>
+      )}
       <div className="space-y-1">
         <Label>{label}</Label>
         <Input
@@ -1117,6 +1131,7 @@ function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit
         <div className="space-y-1">
           <Label>本次工时 (h)<span className="text-muted-foreground font-normal"> — 已有工时 {(existingHours ?? 0)}h</span></Label>
           <Input
+            autoFocus
             type="number"
             inputMode="decimal"
             min="0"
