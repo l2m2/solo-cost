@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - 修复开始或完成任务时会清空负责人、实际开始时间、预估工时、截止日期、所属模块等字段的问题
+- 修复详情弹框中关闭任务（done→closed）时其他字段被置空的问题
 
 ## 0.2.1 (2026-07-04)
 
