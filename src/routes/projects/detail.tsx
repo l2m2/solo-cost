@@ -34,7 +34,7 @@ import { useFinancialStore } from "@/stores/financial";
 import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
-import { Play, CheckCircle, Clock, Pencil, Trash2, ChevronRight, ChevronDown } from "lucide-react";
+import { Play, CheckCircle, Clock, ChevronRight, ChevronDown } from "lucide-react";
 import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
 
@@ -875,7 +875,12 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                           className={`whitespace-nowrap ${TASK_STATUS_BADGE_CLASS[tk.status] ?? ""}`}
                         >{t(`taskStatus.${tk.status}`)}</Badge>
                       </TableCell>
-                      <TableCell className="font-medium">{tk.title}</TableCell>
+                      <TableCell className="font-medium">
+                        <button
+                          className="text-left hover:underline cursor-pointer"
+                          onClick={() => setEditing(tk)}
+                        >{tk.title}</button>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{assignee?.name ?? "—"}</TableCell>
                       <TableCell className="text-right">{tk.estimated_hours != null ? `${tk.estimated_hours}h` : "—"}</TableCell>
                       <TableCell className="text-right">{tk.actual_hours > 0 ? `${tk.actual_hours}h` : "—"}</TableCell>
@@ -907,24 +912,6 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                           title={t("timelog.title")}
                           onClick={() => setOpenLogs(tk)}
                         ><Clock className="h-4 w-4" /></Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2"
-                          title={t("task.edit")}
-                          onClick={() => setEditing(tk)}
-                        ><Pencil className="h-4 w-4" /></Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2"
-                          title={t("task.delete")}
-                          onClick={async () => {
-                            if (!confirm(t("task.deleteConfirm", { title: tk.title }))) return;
-                            try { await softDelete(tk.id, projectId); }
-                            catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-                          }}
-                        ><Trash2 className="h-4 w-4" /></Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -967,6 +954,15 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               onCancel={() => setEditing(null)}
               onSubmit={async (input) => {
                 try { await update(editing.id, input, projectId); setEditing(null); }
+                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onClose={async () => {
+                try { await update(editing.id, { title: editing.title, status: "closed" } as TaskInput, projectId); setEditing(null); }
+                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onDelete={async () => {
+                if (!confirm(t("task.deleteConfirm", { title: editing.title }))) return;
+                try { await softDelete(editing.id, projectId); setEditing(null); }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
             />
@@ -1170,12 +1166,14 @@ function fromDatetimeLocal(v: string): string | null {
   return v.replace("T", " ");
 }
 
-function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
+function TaskForm({ members, modules, initial, onSubmit, onCancel, onClose, onDelete }: {
   members: Member[];
   modules: Module[];
   initial?: Task;
   onSubmit: (input: TaskInput) => Promise<void>;
   onCancel: () => void;
+  onClose?: () => Promise<void>;
+  onDelete?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -1183,7 +1181,7 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
   const [assigneeId, setAssigneeId] = useState<string>(
     initial?.assignee_id ? String(initial.assignee_id) : "__none"
   );
-  const [status, setStatus] = useState(initial?.status ?? "todo");
+  const [status] = useState(initial?.status ?? "todo");
   const [estHours, setEstHours] = useState(
     initial?.estimated_hours != null ? String(initial.estimated_hours) : ""
   );
@@ -1245,15 +1243,7 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
         </div>
         <div className="space-y-1">
           <Label>{t("task.status")}</Label>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todo">{t("taskStatus.todo")}</SelectItem>
-              <SelectItem value="in_progress">{t("taskStatus.in_progress")}</SelectItem>
-              <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
-              <SelectItem value="closed">{t("taskStatus.closed")}</SelectItem>
-            </SelectContent>
-          </Select>
+          <Input value={t(`taskStatus.${status}`)} disabled />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -1293,7 +1283,22 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
         <Textarea value={description ?? ""} onChange={(e) => setDescription(e.target.value)} />
       </div>
       <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
+        {initial && onClose && initial.status === "done" && (
+          <Button
+            variant="outline"
+            onClick={async () => { setBusy(true); try { await onClose(); } finally { setBusy(false); } }}
+            disabled={busy}
+          >关闭任务</Button>
+        )}
+        {initial && onDelete && (
+          <Button
+            variant="destructive"
+            onClick={async () => { setBusy(true); try { await onDelete(); } finally { setBusy(false); } }}
+            disabled={busy}
+          >删除</Button>
+        )}
+        <div className="flex-1" />
+        <Button variant="outline" onClick={onCancel} disabled={busy}>{t("common.cancel")}</Button>
         <Button onClick={submit} disabled={busy}>{t("task.save")}</Button>
       </DialogFooter>
     </div>
