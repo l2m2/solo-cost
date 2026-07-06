@@ -700,7 +700,7 @@ function MarkReceivedForm({ initial, onSubmit, onCancel }: {
 
 function TasksPanel({ projectId, companyId }: { projectId: number; companyId: number }) {
   const { t } = useTranslation();
-  const { byProject, loadFor, create, update, softDelete } = useTasksStore();
+  const { byProject, loadFor, create, update, setStatus, softDelete } = useTasksStore();
   const { create: createTimelog } = useTimelogsStore();
   const {
     byProject: modulesByProject,
@@ -957,7 +957,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onClose={async () => {
-                try { await update(editing.id, { title: editing.title, status: "closed" } as TaskInput, projectId); setEditing(null); }
+                try { await setStatus(editing.id, "closed", projectId); setEditing(null); }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onDelete={async () => {
