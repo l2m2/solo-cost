@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - 完成弹框新增可编辑的开始时间字段，焦点默认落在工时输入框
+- 点击任务标题进入详情编辑弹框，操作列精简为开始/完成/工时三个按钮，状态下拉改为只读
 
 ### Fixed
 - 修复开始或完成任务时会清空负责人、实际开始时间、预估工时、截止日期、所属模块等字段的问题
