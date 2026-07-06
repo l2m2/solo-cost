@@ -6,6 +6,7 @@ mod state;
 
 use crate::error::AppResult;
 use crate::state::AppState;
+use tauri::Manager;
 
 #[tauri::command]
 fn ping() -> AppResult<String> {
@@ -23,6 +24,13 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let version = app.package_info().version.to_string();
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_title(&format!("沃工本 v{version}"));
+            }
+            Ok(())
+        })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             ping,
