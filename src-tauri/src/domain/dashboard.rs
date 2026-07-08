@@ -62,6 +62,18 @@ pub struct RankRow {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct DashTaskRow {
+    pub task_id: i64,
+    pub project_id: i64,
+    pub project_name: String,
+    pub title: String,
+    pub assignee_name: Option<String>,
+    pub status: String,
+    pub due_date: Option<String>,
+    pub overdue: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DashboardSummary {
     pub contract_total_inclusive_cents: i64,
     pub revenue_exclusive_cents: i64,
@@ -79,7 +91,12 @@ pub struct DashboardSummary {
     pub receivables_outstanding_cents: i64,
     pub top_clients: Vec<RankRow>,
     pub top_projects: Vec<RankRow>,
+    pub todo_tasks: Vec<DashTaskRow>,
+    pub todo_task_count: i64,
 }
+
+// Cap on how many todo/in_progress tasks the dashboard card lists.
+const TODO_TASKS_LIMIT: usize = 8;
 
 const STATUS_ORDER: [&str; 6] = [
     "negotiating", "pending", "in_progress", "delivered", "settled", "archived",
@@ -184,6 +201,8 @@ pub fn company_dashboard(
         receivables_outstanding_cents: 0,
         top_clients: Vec::new(),
         top_projects: Vec::new(),
+        todo_tasks: Vec::new(),
+        todo_task_count: 0,
     };
 
     let mut year_recv_inc: HashMap<i32, i64> = HashMap::new();
@@ -393,6 +412,46 @@ pub fn company_dashboard(
         .collect();
     clients.sort_by(|a, b| b.net_cents.cmp(&a.net_cents));
     out.top_clients = clients.into_iter().take(5).collect();
+
+    // todo tasks: unfinished tasks (todo + in_progress) across the company,
+    // soonest due first, undated last. Limited to TODO_TASKS_LIMIT for the card;
+    // todo_task_count keeps the full total for the header badge.
+    out.todo_task_count = conn.query_row(
+        "SELECT COUNT(*)
+         FROM tasks t JOIN projects p ON p.id = t.project_id
+         WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND t.deleted_at IS NULL
+           AND t.status IN ('todo','in_progress')",
+        [company_id],
+        |r| r.get(0),
+    )?;
+    let mut tstmt = conn.prepare(
+        "SELECT t.id, t.project_id, p.name, t.title, m.name, t.status, t.due_date
+         FROM tasks t
+         JOIN projects p ON p.id = t.project_id
+         LEFT JOIN members m ON m.id = t.assignee_id
+         WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND t.deleted_at IS NULL
+           AND t.status IN ('todo','in_progress')
+         ORDER BY (t.due_date IS NULL), t.due_date ASC, t.id ASC
+         LIMIT ?2",
+    )?;
+    let task_rows = tstmt.query_map(
+        rusqlite::params![company_id, TODO_TASKS_LIMIT as i64],
+        |r| {
+            let due_date: Option<String> = r.get(6)?;
+            let overdue = due_date.as_deref().is_some_and(|d| d < today);
+            Ok(DashTaskRow {
+                task_id: r.get(0)?,
+                project_id: r.get(1)?,
+                project_name: r.get(2)?,
+                title: r.get(3)?,
+                assignee_name: r.get(4)?,
+                status: r.get(5)?,
+                due_date,
+                overdue,
+            })
+        },
+    )?;
+    out.todo_tasks = task_rows.collect::<rusqlite::Result<_>>()?;
 
     Ok(out)
 }
@@ -607,5 +666,70 @@ mod tests {
         // per-year commission sums to realized
         let sum: i64 = d.by_year.iter().map(|y| y.commission_cents).sum();
         assert_eq!(sum, d.commission_realized_cents);
+    }
+
+    #[test]
+    fn todo_tasks_sorted_scoped_and_counted() {
+        let dir = tempdir().unwrap();
+        let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Other')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(1,'P1')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(2,'P2')", []).unwrap();
+        conn.execute("INSERT INTO members(company_id, name) VALUES(1,'张三')", []).unwrap();
+        // company 1 tasks: mix of statuses, due dates, and one soft-deleted.
+        conn.execute(
+            "INSERT INTO tasks(project_id, title, assignee_id, status, due_date)
+             VALUES
+               (1,'逾期',1,'todo','2026-06-01'),
+               (1,'今天之后',NULL,'in_progress','2026-08-01'),
+               (1,'无截止',NULL,'todo',NULL),
+               (1,'已完成',NULL,'done','2026-06-10'),
+               (1,'已关闭',NULL,'closed','2026-06-10')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO tasks(project_id, title, status, due_date, deleted_at)
+             VALUES(1,'已删除','todo','2026-06-02','2026-06-05')",
+            [],
+        ).unwrap();
+        // company 2 task must not leak into company 1's dashboard.
+        conn.execute(
+            "INSERT INTO tasks(project_id, title, status) VALUES(2,'别家任务','todo')",
+            [],
+        ).unwrap();
+
+        let d = company_dashboard(&conn, 1, "2026-07-04").unwrap();
+
+        // only todo+in_progress, not deleted, company-scoped → 3 tasks
+        assert_eq!(d.todo_task_count, 3);
+        assert_eq!(d.todo_tasks.len(), 3);
+        // sorted by due_date asc, undated last
+        assert_eq!(d.todo_tasks[0].title, "逾期");
+        assert!(d.todo_tasks[0].overdue);
+        assert_eq!(d.todo_tasks[0].assignee_name.as_deref(), Some("张三"));
+        assert_eq!(d.todo_tasks[0].project_name, "P1");
+        assert_eq!(d.todo_tasks[1].title, "今天之后");
+        assert!(!d.todo_tasks[1].overdue);
+        assert_eq!(d.todo_tasks[1].assignee_name, None);
+        assert_eq!(d.todo_tasks[2].title, "无截止");
+        assert!(!d.todo_tasks[2].overdue); // no due date is never overdue
+    }
+
+    #[test]
+    fn todo_tasks_capped_but_count_is_full() {
+        let dir = tempdir().unwrap();
+        let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(1,'P')", []).unwrap();
+        for i in 0..12 {
+            conn.execute(
+                "INSERT INTO tasks(project_id, title, status) VALUES(1, ?1, 'todo')",
+                [format!("T{i}")],
+            ).unwrap();
+        }
+        let d = company_dashboard(&conn, 1, "2026-07-04").unwrap();
+        assert_eq!(d.todo_task_count, 12);
+        assert_eq!(d.todo_tasks.len(), TODO_TASKS_LIMIT);
     }
 }

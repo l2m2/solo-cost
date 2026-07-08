@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { toast } from "sonner";
 import { useCompanyStore } from "@/stores/company";
 import { useDashboardStore } from "@/stores/dashboard";
+import { useTasksStore } from "@/stores/tasks";
+import { useTimelogsStore } from "@/stores/timelogs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -13,10 +17,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Play, CheckCircle } from "lucide-react";
+import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
+import { call } from "@/lib/ipc";
 import { formatCNY } from "@/lib/money";
 import { statusLabel } from "@/lib/status";
-import type { RankRow, DashYearRow } from "@/types";
+import type { RankRow, DashYearRow, DashTaskRow, Task, TaskInput } from "@/types";
 
 const BUCKET_CLASS: Record<string, string> = {
   overdue: "bg-red-100 text-red-700",
@@ -66,12 +72,104 @@ function RankCard({ title, rows, t }: { title: string; rows: RankRow[]; t: TFunc
   );
 }
 
+function TodoTasksCard({
+  rows, count, t, onOpen, onStart, onComplete,
+}: {
+  rows: DashTaskRow[];
+  count: number;
+  t: TFunction;
+  onOpen: (projectId: number) => void;
+  onStart: (row: DashTaskRow) => void;
+  onComplete: (row: DashTaskRow) => void;
+}) {
+  const hidden = count - rows.length;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">{t("dashboard.todoTasks")} ({count})</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table compact>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-28">{t("dashboard.project")}</TableHead>
+              <TableHead className="min-w-32">{t("dashboard.taskTitle")}</TableHead>
+              <TableHead className="min-w-20">{t("dashboard.assignee")}</TableHead>
+              <TableHead className="w-28">{t("dashboard.taskDue")}</TableHead>
+              <TableHead className="w-20">{t("dashboard.status")}</TableHead>
+              <TableHead className="w-20 text-right">{t("common.actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="p-4 text-sm text-muted-foreground">{t("dashboard.noTodoTasks")}</TableCell></TableRow>
+            ) : rows.map((r) => (
+              <TableRow key={r.task_id}>
+                <TableCell>
+                  <button className="text-left hover:underline cursor-pointer" onClick={() => onOpen(r.project_id)}>
+                    {r.project_name}
+                  </button>
+                </TableCell>
+                <TableCell className="font-medium">
+                  <button className="text-left hover:underline cursor-pointer" onClick={() => onOpen(r.project_id)}>
+                    {r.title}
+                  </button>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{r.assignee_name ?? "—"}</TableCell>
+                <TableCell className={`whitespace-nowrap ${r.overdue ? "text-red-600" : ""}`}>{r.due_date ?? "—"}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className={`whitespace-nowrap ${TASK_STATUS_BADGE_CLASS[r.status] ?? ""}`}>
+                    {t(`taskStatus.${r.status}`)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right whitespace-nowrap">
+                  {r.status === "todo" && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2" title="开始" onClick={() => onStart(r)}>
+                      <Play className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title="完成" onClick={() => onComplete(r)}>
+                    <CheckCircle className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {hidden > 0 && (
+          <div className="border-t px-3 py-2 text-sm text-muted-foreground">
+            {t("dashboard.taskMore", { count: hidden })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const currentId = useCompanyStore((s) => s.currentId);
   const { data, loadedForCompany, loadFor } = useDashboardStore();
+  const updateTask = useTasksStore((s) => s.update);
+  const createTimelog = useTimelogsStore((s) => s.create);
   const [openYear, setOpenYear] = useState<DashYearRow | null>(null);
+  const [startingTask, setStartingTask] = useState<Task | null>(null);
+  const [completingTask, setCompletingTask] = useState<Task | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Start/complete act directly from the dashboard: fetch the full task (the
+  // dialog needs every field to build its update payload), then open the shared
+  // transition dialog. On success the whole dashboard reloads.
+  const openTaskAction = async (row: DashTaskRow, kind: "start" | "complete") => {
+    try {
+      const task = await call<Task>("get_task", { id: row.task_id });
+      if (kind === "start") setStartingTask(task);
+      else setCompletingTask(task);
+    } catch (e: unknown) {
+      toast.error(t("common.error", { msg: String(e) }));
+    }
+  };
 
   useEffect(() => {
     if (currentId != null && loadedForCompany !== currentId) loadFor(currentId);
@@ -159,6 +257,14 @@ export default function DashboardPage() {
               ))}
             </CardContent>
           </Card>
+          <TodoTasksCard
+            rows={data.todo_tasks}
+            count={data.todo_task_count}
+            t={t}
+            onOpen={(projectId) => navigate(`/projects/${projectId}`)}
+            onStart={(row) => openTaskAction(row, "start")}
+            onComplete={(row) => openTaskAction(row, "complete")}
+          />
         </TabsContent>
 
         <TabsContent value="ranking" className="space-y-4">
@@ -280,6 +386,58 @@ export default function DashboardPage() {
                 </TableBody>
               </Table>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!startingTask} onOpenChange={(o) => !o && setStartingTask(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>开始任务</DialogTitle></DialogHeader>
+          {startingTask && (
+            <StatusTransitionDialog
+              task={startingTask}
+              label="开始时间"
+              fieldKey="started_at"
+              onSubmit={async (input) => {
+                try {
+                  await updateTask(startingTask.id, { ...input, status: "in_progress" } as TaskInput, startingTask.project_id);
+                  setStartingTask(null);
+                  if (currentId != null) await loadFor(currentId);
+                } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setStartingTask(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!completingTask} onOpenChange={(o) => !o && setCompletingTask(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>完成任务</DialogTitle></DialogHeader>
+          {completingTask && (
+            <StatusTransitionDialog
+              task={completingTask}
+              label="完成时间"
+              fieldKey="completed_at"
+              existingHours={completingTask.actual_hours}
+              onSubmit={async (input) => {
+                try {
+                  await updateTask(completingTask.id, { ...input, status: "done" } as TaskInput, completingTask.project_id);
+                  const h = (input as Record<string, unknown>).hours;
+                  if (typeof h === "number" && h > 0 && completingTask.assignee_id != null) {
+                    await createTimelog({
+                      task_id: completingTask.id,
+                      member_id: completingTask.assignee_id,
+                      work_date: new Date().toISOString().slice(0, 10),
+                      hours: h,
+                    }, completingTask.project_id);
+                  }
+                  setCompletingTask(null);
+                  if (currentId != null) await loadFor(currentId);
+                } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setCompletingTask(null)}
+            />
           )}
         </DialogContent>
       </Dialog>

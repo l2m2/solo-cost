@@ -353,6 +353,16 @@ export interface RankRow {
   net_cents: number;
   received_inclusive_cents: number;
 }
+export interface DashTaskRow {
+  task_id: number;
+  project_id: number;
+  project_name: string;
+  title: string;
+  assignee_name: string | null;
+  status: string;
+  due_date: string | null;
+  overdue: boolean;
+}
 export interface DashboardSummary {
   contract_total_inclusive_cents: number;
   revenue_exclusive_cents: number;
@@ -370,4 +380,6 @@ export interface DashboardSummary {
   receivables_outstanding_cents: number;
   top_clients: RankRow[];
   top_projects: RankRow[];
+  todo_tasks: DashTaskRow[];
+  todo_task_count: number;
 }
