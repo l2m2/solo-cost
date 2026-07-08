@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+## 0.3.0 (2026-07-08)
 
 ### Added
 - 仪表盘总览页新增「待办任务」卡片：汇总当前公司所有未关闭的任务，展示负责人、截止日与实际开始/完成时间，未完成的排在前面并按截止日排序、逾期标红，最多展示 10 条（超出显示「还有 N 条」），可直接点「开始」「完成」或跳转到对应项目，无需进入项目详情
