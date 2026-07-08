@@ -92,7 +92,7 @@ function TodoTasksCard({
         <Table compact>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-40">{t("dashboard.project")}</TableHead>
+              <TableHead className="w-32">{t("dashboard.project")}</TableHead>
               <TableHead className="min-w-56">{t("dashboard.taskTitle")}</TableHead>
               <TableHead className="min-w-20">{t("dashboard.assignee")}</TableHead>
               <TableHead className="w-20">{t("dashboard.status")}</TableHead>
@@ -108,7 +108,11 @@ function TodoTasksCard({
             ) : rows.map((r) => (
               <TableRow key={r.task_id}>
                 <TableCell>
-                  <button className="text-left hover:underline cursor-pointer" onClick={() => onOpen(r.project_id)}>
+                  <button
+                    className="block max-w-32 truncate text-left hover:underline cursor-pointer"
+                    title={r.project_name}
+                    onClick={() => onOpen(r.project_id)}
+                  >
                     {r.project_name}
                   </button>
                 </TableCell>
