@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -17,12 +17,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  RefreshCw, Play, CheckCircle,
-  FileText, Receipt, TrendingUp, Banknote, Clock, PiggyBank, Coins,
-  type LucideIcon,
-} from "lucide-react";
+import { RefreshCw, Play, CheckCircle, Coins, type LucideIcon } from "lucide-react";
 import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
+import { LedgerOverview } from "@/components/dashboard/LedgerOverview";
 import { call } from "@/lib/ipc";
 import { formatCNY } from "@/lib/money";
 import { statusLabel } from "@/lib/status";
@@ -62,25 +59,6 @@ function Kpi({ label, value, sub, icon: Icon, accent }: {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-// A section label with a small accent bar, used to head KPI groups.
-function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <div className="mb-2 flex items-center gap-2">
-      <span className="h-3.5 w-1 rounded-full bg-primary/70" />
-      <span className="text-sm font-medium">{children}</span>
-    </div>
-  );
-}
-
-function LegendDot({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={`h-2 w-2 rounded-full ${className}`} />
-      {label}
-    </span>
   );
 }
 
@@ -254,7 +232,6 @@ export default function DashboardPage() {
     return <div className="text-sm text-muted-foreground">{t("dashboard.loading")}</div>;
   }
 
-  const maxYear = Math.max(1, ...data.by_year.map((y) => Math.max(y.net_cents, y.received_exclusive_cents)));
   const maxStatus = Math.max(1, ...data.by_status.map((s) => s.contract_inclusive_cents));
 
   return (
@@ -286,53 +263,7 @@ export default function DashboardPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-5">
-          <div>
-            <SectionTitle>{t("dashboard.contractScope")}</SectionTitle>
-            <div className="grid grid-cols-3 gap-3">
-              <Kpi icon={FileText} label={t("dashboard.contractTotal")} value={formatCNY(data.contract_total_inclusive_cents)} />
-              <Kpi icon={Receipt} label={t("dashboard.revenueExclusive")} value={formatCNY(data.revenue_exclusive_cents)} />
-              <Kpi icon={TrendingUp} accent label={t("dashboard.netPotential")} value={formatCNY(data.net_potential_cents)} sub={t("dashboard.netFormula")} />
-            </div>
-          </div>
-          <div>
-            <SectionTitle>{t("dashboard.receivedScope")}</SectionTitle>
-            <div className="grid grid-cols-3 gap-3">
-              <Kpi icon={Banknote} label={t("dashboard.received")} value={formatCNY(data.received_inclusive_cents)} />
-              <Kpi icon={Clock} label={t("dashboard.outstanding")} value={formatCNY(data.outstanding_cents)} />
-              <Kpi icon={PiggyBank} accent label={t("dashboard.netRealized")} value={formatCNY(data.net_realized_cents)} sub={t("dashboard.netFormula")} />
-            </div>
-          </div>
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm">{t("dashboard.netByYear")}</CardTitle>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <LegendDot className="bg-slate-300" label={t("dashboard.receivedLabel")} />
-                <LegendDot className="bg-emerald-500" label={t("dashboard.netLabel")} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {data.by_year.length === 0 ? (
-                <div className="text-sm text-muted-foreground">{t("dashboard.empty")}</div>
-              ) : data.by_year.map((y) => (
-                <button
-                  key={y.year}
-                  type="button"
-                  className="block w-full space-y-1.5 rounded-md p-1.5 text-left transition-colors hover:bg-muted/50"
-                  title={t("dashboard.viewYearDetail")}
-                  onClick={() => setOpenYear(y)}
-                >
-                  <div className="flex justify-between text-xs">
-                    <span className="font-medium tabular-nums">{y.year}</span>
-                    <span className="text-muted-foreground tabular-nums">
-                      {t("dashboard.netLabel")} {formatCNY(y.net_cents)} · {t("dashboard.receivedLabel")} {formatCNY(y.received_exclusive_cents)}
-                    </span>
-                  </div>
-                  <Bar value={y.received_exclusive_cents} max={maxYear} className="bg-slate-300" />
-                  <Bar value={y.net_cents} max={maxYear} className="bg-emerald-500" />
-                </button>
-              ))}
-            </CardContent>
-          </Card>
+          <LedgerOverview data={data} t={t} onOpenYear={setOpenYear} />
           <TodoTasksCard
             rows={data.todo_tasks}
             count={data.todo_task_count}
