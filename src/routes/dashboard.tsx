@@ -73,20 +73,19 @@ function RankCard({ title, rows, t }: { title: string; rows: RankRow[]; t: TFunc
 }
 
 function TodoTasksCard({
-  rows, count, t, onOpen, onStart, onComplete,
+  rows, t, onOpen, onStart, onComplete,
 }: {
   rows: DashTaskRow[];
-  count: number;
   t: TFunction;
   onOpen: (projectId: number) => void;
   onStart: (row: DashTaskRow) => void;
   onComplete: (row: DashTaskRow) => void;
 }) {
-  const hidden = count - rows.length;
+  const fmtHours = (h: number | null | undefined) => (h != null && h > 0 ? `${h}h` : "—");
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">{t("dashboard.todoTasks")} ({count})</CardTitle>
+        <CardTitle className="text-sm">{t("dashboard.todoTasks")} ({rows.length})</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <Table compact>
@@ -95,14 +94,18 @@ function TodoTasksCard({
               <TableHead className="min-w-28">{t("dashboard.project")}</TableHead>
               <TableHead className="min-w-32">{t("dashboard.taskTitle")}</TableHead>
               <TableHead className="min-w-20">{t("dashboard.assignee")}</TableHead>
-              <TableHead className="w-28">{t("dashboard.taskDue")}</TableHead>
               <TableHead className="w-20">{t("dashboard.status")}</TableHead>
+              <TableHead className="w-28">{t("dashboard.taskDue")}</TableHead>
+              <TableHead className="text-right w-16">{t("dashboard.estimated")}</TableHead>
+              <TableHead className="text-right w-16">{t("dashboard.actual")}</TableHead>
+              <TableHead className="w-36">{t("dashboard.startedAt")}</TableHead>
+              <TableHead className="w-36">{t("dashboard.completedAt")}</TableHead>
               <TableHead className="w-20 text-right">{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="p-4 text-sm text-muted-foreground">{t("dashboard.noTodoTasks")}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="p-4 text-sm text-muted-foreground">{t("dashboard.noTodoTasks")}</TableCell></TableRow>
             ) : rows.map((r) => (
               <TableRow key={r.task_id}>
                 <TableCell>
@@ -116,31 +119,32 @@ function TodoTasksCard({
                   </button>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{r.assignee_name ?? "—"}</TableCell>
-                <TableCell className={`whitespace-nowrap ${r.overdue ? "text-red-600" : ""}`}>{r.due_date ?? "—"}</TableCell>
                 <TableCell>
                   <Badge variant="secondary" className={`whitespace-nowrap ${TASK_STATUS_BADGE_CLASS[r.status] ?? ""}`}>
                     {t(`taskStatus.${r.status}`)}
                   </Badge>
                 </TableCell>
+                <TableCell className={`whitespace-nowrap ${r.overdue ? "text-red-600" : ""}`}>{r.due_date ?? "—"}</TableCell>
+                <TableCell className="text-right">{fmtHours(r.estimated_hours)}</TableCell>
+                <TableCell className="text-right">{fmtHours(r.actual_hours)}</TableCell>
+                <TableCell className="text-muted-foreground whitespace-nowrap">{r.started_at ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground whitespace-nowrap">{r.completed_at ?? "—"}</TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                   {r.status === "todo" && (
                     <Button size="sm" variant="ghost" className="h-7 px-2" title="开始" onClick={() => onStart(r)}>
                       <Play className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" className="h-7 px-2" title="完成" onClick={() => onComplete(r)}>
-                    <CheckCircle className="h-4 w-4" />
-                  </Button>
+                  {r.status !== "done" && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2" title="完成" onClick={() => onComplete(r)}>
+                      <CheckCircle className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        {hidden > 0 && (
-          <div className="border-t px-3 py-2 text-sm text-muted-foreground">
-            {t("dashboard.taskMore", { count: hidden })}
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -259,7 +263,6 @@ export default function DashboardPage() {
           </Card>
           <TodoTasksCard
             rows={data.todo_tasks}
-            count={data.todo_task_count}
             t={t}
             onOpen={(projectId) => navigate(`/projects/${projectId}`)}
             onStart={(row) => openTaskAction(row, "start")}
