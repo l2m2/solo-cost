@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - 应用中文名定为「沃工本」，版本号显示在窗口标题栏
+- 系统层面的应用名（安装包、Dock、菜单栏等显示）统一为「沃工本」
 
 ## 0.2.1 (2026-07-04)
 
