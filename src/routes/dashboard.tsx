@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -17,7 +17,11 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Play, CheckCircle } from "lucide-react";
+import {
+  RefreshCw, Play, CheckCircle,
+  FileText, Receipt, TrendingUp, Banknote, Clock, PiggyBank, Coins,
+  type LucideIcon,
+} from "lucide-react";
 import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
 import { call } from "@/lib/ipc";
 import { formatCNY } from "@/lib/money";
@@ -30,15 +34,63 @@ const BUCKET_CLASS: Record<string, string> = {
   future: "bg-slate-100 text-slate-600",
 };
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Kpi({ label, value, sub, icon: Icon, accent }: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon?: LucideIcon;
+  accent?: boolean;
+}) {
   return (
-    <Card>
-      <CardContent className="p-4 space-y-1">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-lg font-semibold">{value}</div>
-        {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+    <Card className="transition-shadow hover:shadow-sm">
+      <CardContent className="flex items-start gap-3 p-4">
+        {Icon && (
+          <div
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+              accent ? "bg-emerald-50 text-emerald-600" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+        )}
+        <div className="min-w-0 space-y-1">
+          <div className="text-xs text-muted-foreground">{label}</div>
+          <div className={`text-2xl font-semibold tracking-tight tabular-nums ${accent ? "text-emerald-600" : ""}`}>
+            {value}
+          </div>
+          {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+// A section label with a small accent bar, used to head KPI groups.
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <span className="h-3.5 w-1 rounded-full bg-primary/70" />
+      <span className="text-sm font-medium">{children}</span>
+    </div>
+  );
+}
+
+function LegendDot({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={`h-2 w-2 rounded-full ${className}`} />
+      {label}
+    </span>
+  );
+}
+
+// Unified rounded progress bar for the year / status breakdowns.
+function Bar({ value, max, className }: { value: number; max: number; className: string }) {
+  const width = `${Math.max(0, Math.min(100, (value / max) * 100))}%`;
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-muted">
+      <div className={`h-full rounded-full ${className}`} style={{ width }} />
+    </div>
   );
 }
 
@@ -50,6 +102,7 @@ function RankCard({ title, rows, t }: { title: string; rows: RankRow[]; t: TFunc
         <Table compact>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8 text-center">#</TableHead>
               <TableHead>{t("dashboard.name")}</TableHead>
               <TableHead className="text-right w-28">{t("dashboard.netLabel")}</TableHead>
               <TableHead className="text-right w-28">{t("dashboard.receivedLabel")}</TableHead>
@@ -57,12 +110,21 @@ function RankCard({ title, rows, t }: { title: string; rows: RankRow[]; t: TFunc
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow><TableCell colSpan={3} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
-            ) : rows.map((r) => (
+              <TableRow><TableCell colSpan={4} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
+            ) : rows.map((r, i) => (
               <TableRow key={r.id}>
-                <TableCell>{r.name}</TableCell>
-                <TableCell className="text-right">{formatCNY(r.net_cents)}</TableCell>
-                <TableCell className="text-right text-muted-foreground">{formatCNY(r.received_inclusive_cents)}</TableCell>
+                <TableCell className="text-center">
+                  <span
+                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs tabular-nums ${
+                      i < 3 ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    {i + 1}
+                  </span>
+                </TableCell>
+                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCNY(r.net_cents)}</TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">{formatCNY(r.received_inclusive_cents)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -127,9 +189,9 @@ function TodoTasksCard({
                     {t(`taskStatus.${r.status}`)}
                   </Badge>
                 </TableCell>
-                <TableCell className={`whitespace-nowrap ${r.overdue ? "text-red-600" : ""}`}>{r.due_date ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground whitespace-nowrap">{r.started_at ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground whitespace-nowrap">{r.completed_at ?? "—"}</TableCell>
+                <TableCell className={`whitespace-nowrap tabular-nums ${r.overdue ? "text-red-600" : ""}`}>{r.due_date ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">{r.started_at ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">{r.completed_at ?? "—"}</TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                   {r.status === "todo" && (
                     <Button size="sm" variant="ghost" className="h-7 px-2" title="开始" onClick={() => onStart(r)}>
@@ -194,12 +256,14 @@ export default function DashboardPage() {
 
   const maxYear = Math.max(1, ...data.by_year.map((y) => Math.max(y.net_cents, y.received_exclusive_cents)));
   const maxStatus = Math.max(1, ...data.by_status.map((s) => s.contract_inclusive_cents));
-  const pct = (v: number, max: number) => `${Math.max(0, Math.min(100, (v / max) * 100))}%`;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t("nav.dashboard")}</h1>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{t("nav.dashboard")}</h1>
+          <p className="text-sm text-muted-foreground">{t("dashboard.subtitle")}</p>
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -221,25 +285,31 @@ export default function DashboardPage() {
           <TabsTrigger value="receivables">{t("dashboard.tabReceivables")}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
+        <TabsContent value="overview" className="space-y-5">
           <div>
-            <div className="mb-2 text-sm font-medium">{t("dashboard.contractScope")}</div>
+            <SectionTitle>{t("dashboard.contractScope")}</SectionTitle>
             <div className="grid grid-cols-3 gap-3">
-              <Kpi label={t("dashboard.contractTotal")} value={formatCNY(data.contract_total_inclusive_cents)} />
-              <Kpi label={t("dashboard.revenueExclusive")} value={formatCNY(data.revenue_exclusive_cents)} />
-              <Kpi label={t("dashboard.netPotential")} value={formatCNY(data.net_potential_cents)} sub={t("dashboard.netFormula")} />
+              <Kpi icon={FileText} label={t("dashboard.contractTotal")} value={formatCNY(data.contract_total_inclusive_cents)} />
+              <Kpi icon={Receipt} label={t("dashboard.revenueExclusive")} value={formatCNY(data.revenue_exclusive_cents)} />
+              <Kpi icon={TrendingUp} accent label={t("dashboard.netPotential")} value={formatCNY(data.net_potential_cents)} sub={t("dashboard.netFormula")} />
             </div>
           </div>
           <div>
-            <div className="mb-2 text-sm font-medium">{t("dashboard.receivedScope")}</div>
+            <SectionTitle>{t("dashboard.receivedScope")}</SectionTitle>
             <div className="grid grid-cols-3 gap-3">
-              <Kpi label={t("dashboard.received")} value={formatCNY(data.received_inclusive_cents)} />
-              <Kpi label={t("dashboard.outstanding")} value={formatCNY(data.outstanding_cents)} />
-              <Kpi label={t("dashboard.netRealized")} value={formatCNY(data.net_realized_cents)} sub={t("dashboard.netFormula")} />
+              <Kpi icon={Banknote} label={t("dashboard.received")} value={formatCNY(data.received_inclusive_cents)} />
+              <Kpi icon={Clock} label={t("dashboard.outstanding")} value={formatCNY(data.outstanding_cents)} />
+              <Kpi icon={PiggyBank} accent label={t("dashboard.netRealized")} value={formatCNY(data.net_realized_cents)} sub={t("dashboard.netFormula")} />
             </div>
           </div>
           <Card>
-            <CardHeader><CardTitle className="text-sm">{t("dashboard.netByYear")}</CardTitle></CardHeader>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-sm">{t("dashboard.netByYear")}</CardTitle>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <LegendDot className="bg-slate-300" label={t("dashboard.receivedLabel")} />
+                <LegendDot className="bg-emerald-500" label={t("dashboard.netLabel")} />
+              </div>
+            </CardHeader>
             <CardContent className="space-y-3">
               {data.by_year.length === 0 ? (
                 <div className="text-sm text-muted-foreground">{t("dashboard.empty")}</div>
@@ -247,22 +317,18 @@ export default function DashboardPage() {
                 <button
                   key={y.year}
                   type="button"
-                  className="block w-full space-y-1 rounded p-1 text-left hover:bg-muted/50"
+                  className="block w-full space-y-1.5 rounded-md p-1.5 text-left transition-colors hover:bg-muted/50"
                   title={t("dashboard.viewYearDetail")}
                   onClick={() => setOpenYear(y)}
                 >
                   <div className="flex justify-between text-xs">
-                    <span>{y.year}</span>
-                    <span className="text-muted-foreground">
+                    <span className="font-medium tabular-nums">{y.year}</span>
+                    <span className="text-muted-foreground tabular-nums">
                       {t("dashboard.netLabel")} {formatCNY(y.net_cents)} · {t("dashboard.receivedLabel")} {formatCNY(y.received_exclusive_cents)}
                     </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded bg-muted">
-                    <div className="h-full bg-slate-300" style={{ width: pct(y.received_exclusive_cents, maxYear) }} />
-                  </div>
-                  <div className="h-2 overflow-hidden rounded bg-muted">
-                    <div className="h-full bg-emerald-500" style={{ width: pct(y.net_cents, maxYear) }} />
-                  </div>
+                  <Bar value={y.received_exclusive_cents} max={maxYear} className="bg-slate-300" />
+                  <Bar value={y.net_cents} max={maxYear} className="bg-emerald-500" />
                 </button>
               ))}
             </CardContent>
@@ -286,12 +352,13 @@ export default function DashboardPage() {
               ) : data.by_status.map((s) => (
                 <div key={s.status} className="space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span>{statusLabel(s.status)} · {s.count}</span>
-                    <span className="text-muted-foreground">{formatCNY(s.contract_inclusive_cents)}</span>
+                    <span>
+                      {statusLabel(s.status)}
+                      <span className="ml-1.5 text-muted-foreground tabular-nums">{s.count}</span>
+                    </span>
+                    <span className="text-muted-foreground tabular-nums">{formatCNY(s.contract_inclusive_cents)}</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded bg-muted">
-                    <div className="h-full bg-sky-400" style={{ width: pct(s.contract_inclusive_cents, maxStatus) }} />
-                  </div>
+                  <Bar value={s.contract_inclusive_cents} max={maxStatus} className="bg-sky-400" />
                 </div>
               ))}
             </CardContent>
@@ -303,7 +370,9 @@ export default function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="receivables" className="space-y-4">
-          <Kpi label={t("dashboard.receivablesOutstanding")} value={formatCNY(data.receivables_outstanding_cents)} />
+          <div className="max-w-xs">
+            <Kpi icon={Coins} label={t("dashboard.receivablesOutstanding")} value={formatCNY(data.receivables_outstanding_cents)} />
+          </div>
           <Card>
             <CardContent className="p-0">
               <Table compact>
@@ -322,11 +391,11 @@ export default function DashboardPage() {
                     <TableRow><TableCell colSpan={6} className="p-4 text-sm text-muted-foreground">{t("dashboard.noReceivables")}</TableCell></TableRow>
                   ) : data.receivables.map((r, i) => (
                     <TableRow key={i}>
-                      <TableCell className="whitespace-nowrap">{r.expected_date}</TableCell>
-                      <TableCell>{r.project_name}</TableCell>
+                      <TableCell className="whitespace-nowrap tabular-nums">{r.expected_date}</TableCell>
+                      <TableCell className="font-medium">{r.project_name}</TableCell>
                       <TableCell className="text-muted-foreground">{r.client_name || "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{r.name}</TableCell>
-                      <TableCell className="text-right">{formatCNY(r.expected_amount_cents)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCNY(r.expected_amount_cents)}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className={`whitespace-nowrap ${BUCKET_CLASS[r.bucket] ?? ""}`}>
                           {t(`dashboard.bucket.${r.bucket}`)}
@@ -348,22 +417,22 @@ export default function DashboardPage() {
           </DialogHeader>
           {openYear && (
             <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-2 text-sm">
-                <div>
+              <div className="grid grid-cols-4 gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                <div className="space-y-0.5">
                   <div className="text-xs text-muted-foreground">{t("dashboard.received")}</div>
-                  <div className="font-medium">{formatCNY(openYear.received_inclusive_cents)}</div>
+                  <div className="font-medium tabular-nums">{formatCNY(openYear.received_inclusive_cents)}</div>
                 </div>
-                <div>
+                <div className="space-y-0.5">
                   <div className="text-xs text-muted-foreground">{t("financial.generalCost")}</div>
-                  <div className="font-medium">−{formatCNY(openYear.general_cost_cents)}</div>
+                  <div className="font-medium tabular-nums">−{formatCNY(openYear.general_cost_cents)}</div>
                 </div>
-                <div>
+                <div className="space-y-0.5">
                   <div className="text-xs text-muted-foreground">{t("financial.commission")}</div>
-                  <div className="font-medium">−{formatCNY(openYear.commission_cents)}</div>
+                  <div className="font-medium tabular-nums">−{formatCNY(openYear.commission_cents)}</div>
                 </div>
-                <div>
+                <div className="space-y-0.5">
                   <div className="text-xs text-muted-foreground">{t("dashboard.netLabel")}</div>
-                  <div className="font-semibold">{formatCNY(openYear.net_cents)}</div>
+                  <div className="font-semibold tabular-nums text-emerald-600">{formatCNY(openYear.net_cents)}</div>
                 </div>
               </div>
               <Table compact>
@@ -384,12 +453,12 @@ export default function DashboardPage() {
                     const proj = openYear.projects.find((p) => p.project_id === r.project_id);
                     return (
                       <TableRow key={i}>
-                        <TableCell>{r.project_name}</TableCell>
+                        <TableCell className="font-medium">{r.project_name}</TableCell>
                         <TableCell className="text-muted-foreground">{r.name}</TableCell>
-                        <TableCell className="text-right">{formatCNY(r.amount_inclusive_cents)}</TableCell>
-                        <TableCell className="whitespace-nowrap">{r.received_at}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{proj ? formatCNY(proj.commission_cents) : "—"}</TableCell>
-                        <TableCell className="text-right font-medium">{proj ? formatCNY(proj.net_cents) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCNY(r.amount_inclusive_cents)}</TableCell>
+                        <TableCell className="whitespace-nowrap tabular-nums">{r.received_at}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{proj ? formatCNY(proj.commission_cents) : "—"}</TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">{proj ? formatCNY(proj.net_cents) : "—"}</TableCell>
                       </TableRow>
                     );
                   })}

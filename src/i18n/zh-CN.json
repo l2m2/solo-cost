@@ -303,6 +303,7 @@
     "laborByModuleSummary": "合计 {{hours}}h · {{cost}}"
   },
   "dashboard": {
+    "subtitle": "公司经营一览",
     "refresh": "刷新",
     "tabOverview": "总览",
     "tabRanking": "分布 & 排行",
