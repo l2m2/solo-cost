@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 
 echo "=== solo-cost 打包 ==="
 VER=$(node -p "require('./package.json').version")
+NAME=$(node -p "require('./package.json').name")
 echo "版本: $VER"
 
 echo ""
@@ -35,15 +36,16 @@ else
   TAG="$ARCH"
 fi
 
-# Rename DMG to include full arch tag
+# Rename DMG to a clean ASCII name: <name>_<version>_<arch>.dmg
+# tauri names the DMG after the (Chinese) productName and uses its own arch
+# suffix (x64 / aarch64); GitHub's asset uploader strips non-ASCII, so we
+# normalise to the package name and our arch tag here.
 for dmg in "$BUNDLE_DIR/dmg"/*.dmg; do
-  if [ -f "$dmg" ]; then
-    NEW="${dmg%_x64.dmg}_${TAG}.dmg"
-    NEW="${NEW%_arm64.dmg}_${TAG}.dmg"
-    if [ "$dmg" != "$NEW" ]; then
-      mv "$dmg" "$NEW" 2>/dev/null || true
-      echo "DMG: $(ls -lh "$NEW" | awk '{print $5, $NF}')"
-    fi
+  [ -f "$dmg" ] || continue
+  NEW="$BUNDLE_DIR/dmg/${NAME}_${VER}_${TAG}.dmg"
+  if [ "$dmg" != "$NEW" ]; then
+    mv -f "$dmg" "$NEW"
+    echo "DMG: $(ls -lh "$NEW" | awk '{print $5, $NF}')"
   fi
 done
 
