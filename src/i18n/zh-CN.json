@@ -304,6 +304,7 @@
   },
   "dashboard": {
     "subtitle": "公司经营一览",
+    "ledgerTitle": "经营账",
     "refresh": "刷新",
     "tabOverview": "总览",
     "tabRanking": "分布 & 排行",
