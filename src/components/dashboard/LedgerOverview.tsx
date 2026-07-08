@@ -1,21 +1,7 @@
-import type { CSSProperties } from "react";
 import type { TFunction } from "i18next";
 import { formatCNY } from "@/lib/money";
 import type { DashboardSummary, DashYearRow } from "@/types";
-
-// Ledger palette — kept local (arbitrary values) so this prototype never
-// touches the global theme or the other tabs.
-const INK = "#1C1A17";
-const INK_SOFT = "#6B6459";
-const VERMILION = "#B23A2E";
-const INDIGO = "#3B4A6B";
-const RULE = "#D8CFBF";
-
-// System Chinese serif stack — gives the account book its weight without
-// bundling a web font.
-const SERIF: CSSProperties = {
-  fontFamily: '"Songti SC","STSong","Source Han Serif SC","Noto Serif SC","SimSun",serif',
-};
+import { PAPER, PAPER_BAR, INK, INK_SOFT, VERMILION, INDIGO, RULE, SERIF } from "./ledgerTokens";
 
 function clampPct(value: number, max: number): string {
   return `${Math.max(0, Math.min(100, (value / max) * 100))}%`;
@@ -79,7 +65,7 @@ export function LedgerOverview({ data, t, onOpenYear }: {
   return (
     <div
       className="space-y-6 rounded-lg p-6"
-      style={{ background: "#F7F4EC", color: INK, border: `1px solid ${RULE}` }}
+      style={{ background: PAPER, color: INK, border: `1px solid ${RULE}` }}
     >
       {/* Ledger masthead */}
       <div
@@ -170,7 +156,7 @@ export function LedgerOverview({ data, t, onOpenYear }: {
 
 function LedgerBar({ value, max, color }: { value: number; max: number; color: string }) {
   return (
-    <div className="h-2 overflow-hidden rounded-full" style={{ background: "#E7DFCF" }}>
+    <div className="h-2 overflow-hidden rounded-full" style={{ background: PAPER_BAR }}>
       <div className="h-full rounded-full" style={{ width: clampPct(value, max), background: color }} />
     </div>
   );

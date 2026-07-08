@@ -18,8 +18,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Play, CheckCircle, Coins, type LucideIcon } from "lucide-react";
-import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
+import { StatusTransitionDialog } from "@/components/tasks/StatusTransitionDialog";
 import { LedgerOverview } from "@/components/dashboard/LedgerOverview";
+import { PAPER, INK, INK_SOFT, VERMILION, INDIGO, RULE, SERIF } from "@/components/dashboard/ledgerTokens";
 import { call } from "@/lib/ipc";
 import { formatCNY } from "@/lib/money";
 import { statusLabel } from "@/lib/status";
@@ -112,6 +113,14 @@ function RankCard({ title, rows, t }: { title: string; rows: RankRow[]; t: TFunc
   );
 }
 
+// Ledger status dots — a restrained substitute for filled badges on paper.
+const LEDGER_STATUS_DOT: Record<string, string> = {
+  todo: "#B0A794",
+  in_progress: INDIGO,
+  done: INK_SOFT,
+};
+
+// Todo list styled as a page of the account book, to match LedgerOverview.
 function TodoTasksCard({
   rows, count, t, onOpen, onStart, onComplete,
 }: {
@@ -124,75 +133,74 @@ function TodoTasksCard({
 }) {
   const hidden = count - rows.length;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">{t("dashboard.todoTasks")} ({count})</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table compact>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-32">{t("dashboard.project")}</TableHead>
-              <TableHead className="min-w-56">{t("dashboard.taskTitle")}</TableHead>
-              <TableHead className="min-w-20">{t("dashboard.assignee")}</TableHead>
-              <TableHead className="w-20">{t("dashboard.status")}</TableHead>
-              <TableHead className="w-28">{t("dashboard.taskDue")}</TableHead>
-              <TableHead className="w-36">{t("dashboard.startedAt")}</TableHead>
-              <TableHead className="w-36">{t("dashboard.completedAt")}</TableHead>
-              <TableHead className="w-20 text-right">{t("common.actions")}</TableHead>
+    <div className="overflow-hidden rounded-lg" style={{ background: PAPER, color: INK, border: `1px solid ${RULE}` }}>
+      <div className="px-5 py-3" style={{ borderBottom: `1px solid ${RULE}` }}>
+        <h3 className="text-sm font-medium" style={SERIF}>{t("dashboard.todoTasks")} ({count})</h3>
+      </div>
+      <Table compact>
+        <TableHeader>
+          <TableRow style={{ borderColor: RULE }}>
+            <TableHead className="w-32" style={{ color: INK_SOFT }}>{t("dashboard.project")}</TableHead>
+            <TableHead className="min-w-56" style={{ color: INK_SOFT }}>{t("dashboard.taskTitle")}</TableHead>
+            <TableHead className="min-w-20" style={{ color: INK_SOFT }}>{t("dashboard.assignee")}</TableHead>
+            <TableHead className="w-20" style={{ color: INK_SOFT }}>{t("dashboard.status")}</TableHead>
+            <TableHead className="w-28" style={{ color: INK_SOFT }}>{t("dashboard.taskDue")}</TableHead>
+            <TableHead className="w-36" style={{ color: INK_SOFT }}>{t("dashboard.startedAt")}</TableHead>
+            <TableHead className="w-36" style={{ color: INK_SOFT }}>{t("dashboard.completedAt")}</TableHead>
+            <TableHead className="w-20 text-right" style={{ color: INK_SOFT }}>{t("common.actions")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableRow style={{ borderColor: RULE }}><TableCell colSpan={8} className="p-4 text-sm" style={{ color: INK_SOFT }}>{t("dashboard.noTodoTasks")}</TableCell></TableRow>
+          ) : rows.map((r) => (
+            <TableRow key={r.task_id} className="hover:bg-black/[0.03]" style={{ borderColor: RULE }}>
+              <TableCell>
+                <button
+                  className="block max-w-32 truncate text-left hover:underline cursor-pointer"
+                  title={r.project_name}
+                  onClick={() => onOpen(r.project_id)}
+                >
+                  {r.project_name}
+                </button>
+              </TableCell>
+              <TableCell className="font-medium">
+                <button className="text-left hover:underline cursor-pointer" onClick={() => onOpen(r.project_id)}>
+                  {r.title}
+                </button>
+              </TableCell>
+              <TableCell style={{ color: INK_SOFT }}>{r.assignee_name ?? "—"}</TableCell>
+              <TableCell>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs" style={{ color: INK_SOFT }}>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: LEDGER_STATUS_DOT[r.status] ?? INK_SOFT }} />
+                  {t(`taskStatus.${r.status}`)}
+                </span>
+              </TableCell>
+              <TableCell className="whitespace-nowrap tabular-nums" style={r.overdue ? { color: VERMILION } : undefined}>{r.due_date ?? "—"}</TableCell>
+              <TableCell className="whitespace-nowrap tabular-nums" style={{ color: INK_SOFT }}>{r.started_at ?? "—"}</TableCell>
+              <TableCell className="whitespace-nowrap tabular-nums" style={{ color: INK_SOFT }}>{r.completed_at ?? "—"}</TableCell>
+              <TableCell className="text-right whitespace-nowrap">
+                {r.status === "todo" && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title="开始" style={{ color: INK_SOFT }} onClick={() => onStart(r)}>
+                    <Play className="h-4 w-4" />
+                  </Button>
+                )}
+                {r.status !== "done" && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title="完成" style={{ color: INK_SOFT }} onClick={() => onComplete(r)}>
+                    <CheckCircle className="h-4 w-4" />
+                  </Button>
+                )}
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="p-4 text-sm text-muted-foreground">{t("dashboard.noTodoTasks")}</TableCell></TableRow>
-            ) : rows.map((r) => (
-              <TableRow key={r.task_id}>
-                <TableCell>
-                  <button
-                    className="block max-w-32 truncate text-left hover:underline cursor-pointer"
-                    title={r.project_name}
-                    onClick={() => onOpen(r.project_id)}
-                  >
-                    {r.project_name}
-                  </button>
-                </TableCell>
-                <TableCell className="font-medium">
-                  <button className="text-left hover:underline cursor-pointer" onClick={() => onOpen(r.project_id)}>
-                    {r.title}
-                  </button>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{r.assignee_name ?? "—"}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className={`whitespace-nowrap ${TASK_STATUS_BADGE_CLASS[r.status] ?? ""}`}>
-                    {t(`taskStatus.${r.status}`)}
-                  </Badge>
-                </TableCell>
-                <TableCell className={`whitespace-nowrap tabular-nums ${r.overdue ? "text-red-600" : ""}`}>{r.due_date ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">{r.started_at ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">{r.completed_at ?? "—"}</TableCell>
-                <TableCell className="text-right whitespace-nowrap">
-                  {r.status === "todo" && (
-                    <Button size="sm" variant="ghost" className="h-7 px-2" title="开始" onClick={() => onStart(r)}>
-                      <Play className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {r.status !== "done" && (
-                    <Button size="sm" variant="ghost" className="h-7 px-2" title="完成" onClick={() => onComplete(r)}>
-                      <CheckCircle className="h-4 w-4" />
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {hidden > 0 && (
-          <div className="border-t px-3 py-2 text-sm text-muted-foreground">
-            {t("dashboard.taskMore", { count: hidden })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          ))}
+        </TableBody>
+      </Table>
+      {hidden > 0 && (
+        <div className="px-5 py-2 text-sm" style={{ color: INK_SOFT, borderTop: `1px solid ${RULE}` }}>
+          {t("dashboard.taskMore", { count: hidden })}
+        </div>
+      )}
+    </div>
   );
 }
 
