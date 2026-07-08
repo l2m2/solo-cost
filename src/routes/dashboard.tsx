@@ -73,19 +73,21 @@ function RankCard({ title, rows, t }: { title: string; rows: RankRow[]; t: TFunc
 }
 
 function TodoTasksCard({
-  rows, t, onOpen, onStart, onComplete,
+  rows, count, t, onOpen, onStart, onComplete,
 }: {
   rows: DashTaskRow[];
+  count: number;
   t: TFunction;
   onOpen: (projectId: number) => void;
   onStart: (row: DashTaskRow) => void;
   onComplete: (row: DashTaskRow) => void;
 }) {
   const fmtHours = (h: number | null | undefined) => (h != null && h > 0 ? `${h}h` : "—");
+  const hidden = count - rows.length;
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">{t("dashboard.todoTasks")} ({rows.length})</CardTitle>
+        <CardTitle className="text-sm">{t("dashboard.todoTasks")} ({count})</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <Table compact>
@@ -145,6 +147,11 @@ function TodoTasksCard({
             ))}
           </TableBody>
         </Table>
+        {hidden > 0 && (
+          <div className="border-t px-3 py-2 text-sm text-muted-foreground">
+            {t("dashboard.taskMore", { count: hidden })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -263,6 +270,7 @@ export default function DashboardPage() {
           </Card>
           <TodoTasksCard
             rows={data.todo_tasks}
+            count={data.todo_task_count}
             t={t}
             onOpen={(projectId) => navigate(`/projects/${projectId}`)}
             onStart={(row) => openTaskAction(row, "start")}

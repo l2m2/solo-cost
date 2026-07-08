@@ -385,4 +385,5 @@ export interface DashboardSummary {
   top_clients: RankRow[];
   top_projects: RankRow[];
   todo_tasks: DashTaskRow[];
+  todo_task_count: number;
 }

@@ -342,6 +342,7 @@
     "actual": "实际",
     "startedAt": "实际开始",
     "completedAt": "实际完成",
+    "taskMore": "还有 {{count}} 条…",
     "noTodoTasks": "暂无待办任务",
     "empty": "暂无数据",
     "loading": "加载中…",

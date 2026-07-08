@@ -43,8 +43,10 @@
 | 实际完成 | `completed_at` 或 `—` |
 | 操作 | ▶️ 开始（仅 `todo`）、✅ 完成（`todo`/`in_progress`，`done` 不显示）|
 
-- 排序：`due_date` 升序，无截止日排最后。
-- 全部列出，不截断。
+- 排序：未完成（`todo`/`in_progress`）在前、已完成（`done`）在后；同组内 `due_date`
+  升序、无截止日排最后。这样限制条数时优先保留可操作的任务。
+- 最多展示 10 行（`TODO_TASKS_LIMIT`）；若总数 N > 10，表尾一行「还有 M 条…」
+  （M = N − 已展示条数）。
 - 空态：「暂无待办任务」。
 
 ## 后端设计（`src-tauri/src/domain/dashboard.rs`）
@@ -69,7 +71,8 @@ pub struct DashTaskRow {
 }
 ```
 
-`DashboardSummary` 增加字段：`pub todo_tasks: Vec<DashTaskRow>`。
+`DashboardSummary` 增加字段：`pub todo_tasks: Vec<DashTaskRow>`（最多
+`TODO_TASKS_LIMIT` = 10 条）与 `pub todo_task_count: i64`（未关闭任务全量计数）。
 
 查询（公司范围、未软删、状态过滤）：
 
@@ -84,11 +87,13 @@ LEFT JOIN members m ON m.id = t.assignee_id
 WHERE p.company_id = ?1 AND p.deleted_at IS NULL
   AND t.deleted_at IS NULL
   AND t.status != 'closed'
-ORDER BY (t.due_date IS NULL), t.due_date ASC, t.id ASC
+ORDER BY (t.status = 'done'), (t.due_date IS NULL), t.due_date ASC, t.id ASC
+LIMIT 10
 ```
 
 - `overdue`：`status != 'done'` 且 `due_date` 存在且 `due_date < today`
   （`today` 已由 `company_dashboard` 传入；已完成任务不标记逾期）。
+- `todo_task_count`：同 WHERE、无 LIMIT 的单条 `COUNT(*)`。
 
 开始/完成弹框需要完整 Task，由前端在点击操作时调用 `get_task(id)` 按需获取。
 
@@ -117,12 +122,12 @@ ORDER BY (t.due_date IS NULL), t.due_date ASC, t.id ASC
 ### 3. `src/types.ts`
 
 - 新增 `DashTaskRow` 类型（对应后端结构，含工时与起止时间字段）。
-- `DashboardSummary` 增加 `todo_tasks: DashTaskRow[]`。
+- `DashboardSummary` 增加 `todo_tasks: DashTaskRow[]`、`todo_task_count: number`。
 
 ### 4. i18n（`src/i18n/zh-CN.json`）
 
 `dashboard` 下新增：`todoTasks`、`taskTitle`、`assignee`、`taskDue`、
-`estimated`、`actual`、`startedAt`、`completedAt`、`noTodoTasks`。
+`estimated`、`actual`、`startedAt`、`completedAt`、`taskMore`、`noTodoTasks`。
 项目 / 状态列头复用已有键，任务状态标签复用 `taskStatus.*`。
 
 ## 测试
