@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { PAPER, INK, INK_SOFT, VERMILION, RULE, SERIF } from "@/lib/brand";
 import { LayoutDashboard, FolderKanban, Users, Trash2, Settings, Contact } from "lucide-react";
 
 const ITEMS = [
@@ -15,22 +16,39 @@ const ITEMS = [
 export function Sidebar() {
   const { t } = useTranslation();
   return (
-    <aside className="w-56 border-r bg-background flex flex-col">
-      <div className="px-4 h-14 flex items-center font-semibold">{t("app.name")}</div>
-      <nav className="flex-1 px-2 space-y-1">
+    <aside
+      className="flex w-56 flex-col"
+      style={{ background: PAPER, color: INK, borderRight: `1px solid ${RULE}` }}
+    >
+      <div className="flex h-14 flex-col justify-center px-4" style={{ borderBottom: `1px solid ${RULE}` }}>
+        <span className="text-lg font-semibold leading-none" style={SERIF}>{t("app.name")}</span>
+        <span className="mt-1 text-[11px]" style={{ color: INK_SOFT }}>{t("app.tagline")}</span>
+      </div>
+      <nav className="flex-1 space-y-1 px-2 py-2">
         {ITEMS.map((it) => (
           <NavLink
             key={it.to}
             to={it.to}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-accent",
-                isActive && "bg-accent",
+                "relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-black/[0.04]",
+                isActive && "font-medium",
               )
             }
+            style={({ isActive }) => ({ color: isActive ? VERMILION : INK_SOFT })}
           >
-            <it.icon className="h-4 w-4" />
-            <span>{t(it.key)}</span>
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <span
+                    className="absolute inset-y-1.5 left-0 w-0.5 rounded-full"
+                    style={{ background: VERMILION }}
+                  />
+                )}
+                <it.icon className="h-4 w-4" />
+                <span>{t(it.key)}</span>
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
