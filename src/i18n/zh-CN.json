@@ -338,8 +338,6 @@
     "taskTitle": "标题",
     "assignee": "负责人",
     "taskDue": "截止日",
-    "estimated": "预估",
-    "actual": "实际",
     "startedAt": "实际开始",
     "completedAt": "实际完成",
     "taskMore": "还有 {{count}} 条…",

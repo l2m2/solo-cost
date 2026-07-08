@@ -82,7 +82,6 @@ function TodoTasksCard({
   onStart: (row: DashTaskRow) => void;
   onComplete: (row: DashTaskRow) => void;
 }) {
-  const fmtHours = (h: number | null | undefined) => (h != null && h > 0 ? `${h}h` : "—");
   const hidden = count - rows.length;
   return (
     <Card>
@@ -93,13 +92,11 @@ function TodoTasksCard({
         <Table compact>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">{t("dashboard.project")}</TableHead>
-              <TableHead className="min-w-48">{t("dashboard.taskTitle")}</TableHead>
+              <TableHead className="min-w-40">{t("dashboard.project")}</TableHead>
+              <TableHead className="min-w-56">{t("dashboard.taskTitle")}</TableHead>
               <TableHead className="min-w-20">{t("dashboard.assignee")}</TableHead>
               <TableHead className="w-20">{t("dashboard.status")}</TableHead>
               <TableHead className="w-28">{t("dashboard.taskDue")}</TableHead>
-              <TableHead className="text-right w-16">{t("dashboard.estimated")}</TableHead>
-              <TableHead className="text-right w-16">{t("dashboard.actual")}</TableHead>
               <TableHead className="w-36">{t("dashboard.startedAt")}</TableHead>
               <TableHead className="w-36">{t("dashboard.completedAt")}</TableHead>
               <TableHead className="w-20 text-right">{t("common.actions")}</TableHead>
@@ -107,15 +104,11 @@ function TodoTasksCard({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="p-4 text-sm text-muted-foreground">{t("dashboard.noTodoTasks")}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="p-4 text-sm text-muted-foreground">{t("dashboard.noTodoTasks")}</TableCell></TableRow>
             ) : rows.map((r) => (
               <TableRow key={r.task_id}>
                 <TableCell>
-                  <button
-                    className="block max-w-24 truncate text-left hover:underline cursor-pointer"
-                    title={r.project_name}
-                    onClick={() => onOpen(r.project_id)}
-                  >
+                  <button className="text-left hover:underline cursor-pointer" onClick={() => onOpen(r.project_id)}>
                     {r.project_name}
                   </button>
                 </TableCell>
@@ -131,8 +124,6 @@ function TodoTasksCard({
                   </Badge>
                 </TableCell>
                 <TableCell className={`whitespace-nowrap ${r.overdue ? "text-red-600" : ""}`}>{r.due_date ?? "—"}</TableCell>
-                <TableCell className="text-right">{fmtHours(r.estimated_hours)}</TableCell>
-                <TableCell className="text-right">{fmtHours(r.actual_hours)}</TableCell>
                 <TableCell className="text-muted-foreground whitespace-nowrap">{r.started_at ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground whitespace-nowrap">{r.completed_at ?? "—"}</TableCell>
                 <TableCell className="text-right whitespace-nowrap">

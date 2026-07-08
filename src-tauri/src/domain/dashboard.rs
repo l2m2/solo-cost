@@ -71,8 +71,6 @@ pub struct DashTaskRow {
     pub status: String,
     pub due_date: Option<String>,
     pub overdue: bool,
-    pub estimated_hours: Option<f64>,
-    pub actual_hours: f64,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
 }
@@ -420,8 +418,7 @@ pub fn company_dashboard(
 
     // todo tasks: non-closed tasks across the company. Unfinished (todo /
     // in_progress) come before done so the capped view keeps actionable tasks
-    // visible; within that, soonest due first and undated last. actual_hours is
-    // summed from non-deleted time logs, same as the task list. A done task past
+    // visible; within that, soonest due first and undated last. A done task past
     // its due date is not flagged overdue. todo_task_count is the full total;
     // the card shows at most TODO_TASKS_LIMIT and summarises the rest.
     out.todo_task_count = conn.query_row(
@@ -434,9 +431,7 @@ pub fn company_dashboard(
     )?;
     let mut tstmt = conn.prepare(
         "SELECT t.id, t.project_id, p.name, t.title, m.name, t.status, t.due_date,
-                t.estimated_hours, t.started_at, t.completed_at,
-                COALESCE((SELECT SUM(hours) FROM time_logs
-                          WHERE task_id = t.id AND deleted_at IS NULL), 0.0) AS actual_hours
+                t.started_at, t.completed_at
          FROM tasks t
          JOIN projects p ON p.id = t.project_id
          LEFT JOIN members m ON m.id = t.assignee_id
@@ -458,10 +453,8 @@ pub fn company_dashboard(
             status,
             due_date,
             overdue,
-            estimated_hours: r.get(7)?,
-            started_at: r.get(8)?,
-            completed_at: r.get(9)?,
-            actual_hours: r.get(10)?,
+            started_at: r.get(7)?,
+            completed_at: r.get(8)?,
         })
     })?;
     out.todo_tasks = task_rows.collect::<rusqlite::Result<_>>()?;
@@ -682,7 +675,7 @@ mod tests {
     }
 
     #[test]
-    fn todo_tasks_all_non_closed_sorted_with_hours() {
+    fn todo_tasks_all_non_closed_sorted() {
         let dir = tempdir().unwrap();
         let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
         conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
@@ -690,16 +683,16 @@ mod tests {
         conn.execute("INSERT INTO projects(company_id, name) VALUES(1,'P1')", []).unwrap();
         conn.execute("INSERT INTO projects(company_id, name) VALUES(2,'P2')", []).unwrap();
         conn.execute("INSERT INTO members(company_id, name) VALUES(1,'张三')", []).unwrap();
-        // company 1 tasks: mix of statuses, due dates, hours, and one soft-deleted.
+        // company 1 tasks: mix of statuses, due dates, and one soft-deleted.
         conn.execute(
             "INSERT INTO tasks(project_id, title, assignee_id, status, due_date,
-                 estimated_hours, started_at, completed_at)
+                 started_at, completed_at)
              VALUES
-               (1,'逾期',1,'todo','2026-06-01', 3.0, NULL, NULL),
-               (1,'今天之后',NULL,'in_progress','2026-08-01', NULL, '2026-07-01 09:00', NULL),
-               (1,'无截止',NULL,'todo',NULL, NULL, NULL, NULL),
-               (1,'已完成',NULL,'done','2026-06-10', 5.0, '2026-06-05 09:00', '2026-06-10 18:00'),
-               (1,'已关闭',NULL,'closed','2026-06-10', NULL, NULL, NULL)",
+               (1,'逾期',1,'todo','2026-06-01', NULL, NULL),
+               (1,'今天之后',NULL,'in_progress','2026-08-01', '2026-07-01 09:00', NULL),
+               (1,'无截止',NULL,'todo',NULL, NULL, NULL),
+               (1,'已完成',NULL,'done','2026-06-10', '2026-06-05 09:00', '2026-06-10 18:00'),
+               (1,'已关闭',NULL,'closed','2026-06-10', NULL, NULL)",
             [],
         ).unwrap();
         conn.execute(
@@ -710,12 +703,6 @@ mod tests {
         // company 2 task must not leak into company 1's dashboard.
         conn.execute(
             "INSERT INTO tasks(project_id, title, status) VALUES(2,'别家任务','todo')",
-            [],
-        ).unwrap();
-        // 2.5h logged against the overdue task (id=1) → actual_hours
-        conn.execute(
-            "INSERT INTO time_logs(task_id, member_id, work_date, hours, daily_cost_snapshot_cents)
-             VALUES(1, 1, '2026-06-01', 2.5, 0)",
             [],
         ).unwrap();
 
@@ -730,8 +717,6 @@ mod tests {
         assert!(t0.overdue);
         assert_eq!(t0.assignee_name.as_deref(), Some("张三"));
         assert_eq!(t0.project_name, "P1");
-        assert_eq!(t0.estimated_hours, Some(3.0));
-        assert_eq!(t0.actual_hours, 2.5);
 
         assert_eq!(d.todo_tasks[1].title, "今天之后");
         assert!(!d.todo_tasks[1].overdue);

@@ -14,7 +14,7 @@
 
 - 展示当前公司下所有**未关闭**（`status != 'closed'`）的任务，全部列出，不截断。
 - 每行是一个可操作的快捷方式：跳转项目、开始、完成。
-- 展示预估工时、实际工时（汇总自未软删工时）、实际开始、实际完成时间。
+- 展示负责人、截止日、实际开始、实际完成时间。
 - 开始 / 完成复用项目详情页现有的 `StatusTransitionDialog`（录入时间、工时、描述），
   操作完成后刷新仪表盘数据。
 
@@ -37,8 +37,6 @@
 | 负责人 | 成员名，无则显示 `—` |
 | 状态 | 徽章：`待办`=slate、`进行中`=amber、`已完成`=emerald，标签复用 `taskStatus.*` |
 | 截止日 | 逾期显示红色 `text-red-600`，无截止日显示 `—` |
-| 预估 | `estimated_hours`，`{h}h` 或 `—` |
-| 实际 | `actual_hours`（>0 时 `{h}h`，否则 `—`）|
 | 实际开始 | `started_at` 或 `—` |
 | 实际完成 | `completed_at` 或 `—` |
 | 操作 | ▶️ 开始（仅 `todo`）、✅ 完成（`todo`/`in_progress`，`done` 不显示）|
@@ -64,8 +62,6 @@ pub struct DashTaskRow {
     pub status: String,
     pub due_date: Option<String>,
     pub overdue: bool,
-    pub estimated_hours: Option<f64>,
-    pub actual_hours: f64,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
 }
@@ -78,9 +74,7 @@ pub struct DashTaskRow {
 
 ```sql
 SELECT t.id, t.project_id, p.name, t.title, m.name, t.status, t.due_date,
-       t.estimated_hours, t.started_at, t.completed_at,
-       COALESCE((SELECT SUM(hours) FROM time_logs
-                 WHERE task_id = t.id AND deleted_at IS NULL), 0.0) AS actual_hours
+       t.started_at, t.completed_at
 FROM tasks t
 JOIN projects p ON p.id = t.project_id
 LEFT JOIN members m ON m.id = t.assignee_id
@@ -121,18 +115,18 @@ LIMIT 10
 
 ### 3. `src/types.ts`
 
-- 新增 `DashTaskRow` 类型（对应后端结构，含工时与起止时间字段）。
+- 新增 `DashTaskRow` 类型（对应后端结构，含起止时间字段）。
 - `DashboardSummary` 增加 `todo_tasks: DashTaskRow[]`、`todo_task_count: number`。
 
 ### 4. i18n（`src/i18n/zh-CN.json`）
 
 `dashboard` 下新增：`todoTasks`、`taskTitle`、`assignee`、`taskDue`、
-`estimated`、`actual`、`startedAt`、`completedAt`、`taskMore`、`noTodoTasks`。
+`startedAt`、`completedAt`、`taskMore`、`noTodoTasks`。
 项目 / 状态列头复用已有键，任务状态标签复用 `taskStatus.*`。
 
 ## 测试
 
 - 后端：在 `domain/dashboard.rs` 现有测试模块中新增用例，构造公司 + 项目 + 任务
-  （含不同状态、有/无 due_date、逾期/未逾期、工时与起止时间，及跨公司/软删/关闭），
-  断言 `todo_tasks` 的过滤（非关闭）、排序、`overdue` 计算与工时字段正确。
+  （含不同状态、有/无 due_date、逾期/未逾期、起止时间，及跨公司/软删/关闭），
+  断言 `todo_tasks` 的过滤（非关闭）、排序上限与 `overdue` 计算正确。
 - 前端：手动验证跳转、开始、完成后卡片刷新。

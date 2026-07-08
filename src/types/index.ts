@@ -362,8 +362,6 @@ export interface DashTaskRow {
   status: string;
   due_date: string | null;
   overdue: boolean;
-  estimated_hours: number | null;
-  actual_hours: number;
   started_at: string | null;
   completed_at: string | null;
 }
