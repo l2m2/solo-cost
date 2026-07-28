@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+## 0.4.0 (2026-07-28)
 
 ### Added
 - 仪表盘将「待办」独立为单独的 Tab 页：从「总览」中拆出，跨项目汇总全部未关闭任务（不再限制 10 条），支持按状态、负责人筛选与分页，新增预估/实际工时列，已完成的任务可在此一键关闭（归档）
