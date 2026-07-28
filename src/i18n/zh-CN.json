@@ -247,6 +247,7 @@
     "empty": "暂无任务，新建第一个",
     "emptyFiltered": "当前筛选条件下没有任务",
     "titleRequired": "标题必填",
+    "estimatedHoursRequired": "预估工时必填",
     "filterByStatus": "按状态筛选",
     "activeStatuses": "未关闭",
     "allStatuses": "全部状态",
@@ -356,6 +357,7 @@
   "common": {
     "cancel": "取消",
     "confirm": "确定",
+    "delete": "删除",
     "save": "保存",
     "close": "关闭",
     "error": "操作失败：{{msg}}",

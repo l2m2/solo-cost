@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { save, open } from "@tauri-apps/plugin-dialog";
+import { confirmDialog } from "@/lib/confirm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ function RestoreDialog({ open: isOpen, onClose }: { open: boolean; onClose: () =
   const restore = async () => {
     if (!selected) return toast.error(t("settings.backup.chooseFile"));
     if (!password) return toast.error(t("login.password"));
-    if (!confirm(t("settings.backup.restoreConfirm"))) return;
+    if (!(await confirmDialog(t("settings.backup.restoreConfirm")))) return;
     setBusy(true);
     try {
       await restoreFromBackup(selected, password);
@@ -146,7 +147,7 @@ export default function SettingsPage() {
   };
 
   const doExport = async () => {
-    if (!confirm(t("settings.backup.exportWarning"))) return;
+    if (!(await confirmDialog(t("settings.backup.exportWarning")))) return;
     const picked = await save({
       defaultPath: "solo-cost-plaintext.db",
       filters: [{ name: "SQLite db", extensions: ["db"] }],

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/confirm";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +74,7 @@ export default function TrashPage() {
                         variant="ghost"
                         className="h-7 px-2"
                         onClick={async () => {
-                          if (!confirm(t("trash.purgeConfirm"))) return;
+                          if (!(await confirmDialog(t("trash.purgeConfirm"), { title: t("trash.purge"), okLabel: t("trash.purge"), kind: "error" }))) return;
                           try { await purge(it.entity_type, it.id, currentId); }
                           catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
                         }}

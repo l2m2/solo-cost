@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,18 @@ export function StatusTransitionDialog({ task, label, fieldKey, existingHours, o
   const showHours = fieldKey === "completed_at";
 
   const handleSubmit = async () => {
+    if (showHours) {
+      // Completing a task must attribute its hours to someone, and the task's
+      // total actual hours (already logged + this session) must end up > 0.
+      if (task.assignee_id == null) {
+        toast.error("请先为任务指定负责人，再完成任务");
+        return;
+      }
+      if ((existingHours ?? 0) + hours <= 0) {
+        toast.error("完成任务时总工时须大于 0（已有工时 + 本次）");
+        return;
+      }
+    }
     setBusy(true);
     try {
       const stored = datetime ? datetime.replace("T", " ") : null;

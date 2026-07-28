@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/confirm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ import { useFinancialStore } from "@/stores/financial";
 import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
-import { Play, CheckCircle, Clock, ChevronRight, ChevronDown } from "lucide-react";
+import { Play, CheckCircle, Archive, Clock, ChevronRight, ChevronDown } from "lucide-react";
 import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
 import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
@@ -354,7 +355,7 @@ function CostsPanel({ projectId }: { projectId: number }) {
                         variant="ghost"
                         className="h-7 px-2"
                         onClick={async () => {
-                          if (!confirm(t("cost.deleteConfirm"))) return;
+                          if (!(await confirmDialog(t("cost.deleteConfirm"), { title: t("common.delete"), okLabel: t("common.delete") }))) return;
                           try { await remove(e.id, projectId); }
                           catch (err: unknown) { toast.error(t("common.error", { msg: String(err) })); }
                         }}
@@ -547,7 +548,7 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
                       variant="ghost"
                       className="h-7 px-2"
                       onClick={async () => {
-                        if (!confirm("确认删除该收款节点？")) return;
+                        if (!(await confirmDialog("确认删除该收款节点？", { title: t("common.delete"), okLabel: t("common.delete") }))) return;
                         try { await softDelete(p.id, projectId); }
                         catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
                       }}
@@ -899,6 +900,18 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                             onClick={() => setCompletingTask(tk)}
                           ><CheckCircle className="h-4 w-4" /></Button>
                         )}
+                        {tk.status === "done" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            title="关闭任务"
+                            onClick={async () => {
+                              try { await setStatus(tk.id, "closed", projectId); }
+                              catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+                            }}
+                          ><Archive className="h-4 w-4" /></Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
@@ -955,7 +968,15 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onDelete={async () => {
-                if (!confirm(t("task.deleteConfirm", { title: editing.title }))) return;
+                // Native window.confirm() does not reliably block in this Tauri
+                // webview, so use the plugin dialog's async confirm instead.
+                const ok = await confirmDialog(t("task.deleteConfirm", { title: editing.title }), {
+                  title: t("task.delete"),
+                  kind: "warning",
+                  okLabel: t("task.delete"),
+                  cancelLabel: t("common.cancel"),
+                });
+                if (!ok) return;
                 try { await softDelete(editing.id, projectId); setEditing(null); }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
@@ -1100,6 +1121,9 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel, onClose, onDe
 
   const submit = async () => {
     if (!title.trim()) return toast.error(t("task.titleRequired"));
+    // Estimated hours is mandatory when creating a task (but not when editing an
+    // existing one, so tasks predating this rule stay editable).
+    if (!initial && estHours.trim() === "") return toast.error(t("task.estimatedHoursRequired"));
     setBusy(true);
     try {
       await onSubmit({
@@ -1267,7 +1291,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
                       variant="ghost"
                       className="h-7 px-2"
                       onClick={async () => {
-                        if (!confirm(t("timelog.deleteConfirm"))) return;
+                        if (!(await confirmDialog(t("timelog.deleteConfirm"), { title: t("common.delete"), okLabel: t("common.delete") }))) return;
                         try { await softDelete(l.id, task.id, task.project_id); }
                         catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
                       }}
@@ -1500,7 +1524,7 @@ function ManageModulesForm({
                   >{t("module.rename")}</Button>
                   <Button size="sm" variant="ghost"
                     onClick={async () => {
-                      if (!confirm(t("module.deleteConfirm", { name: m.name }))) return;
+                      if (!(await confirmDialog(t("module.deleteConfirm", { name: m.name }), { title: t("common.delete"), okLabel: t("common.delete") }))) return;
                       try { await softDeleteModule(m.id, projectId); }
                       catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
                     }}

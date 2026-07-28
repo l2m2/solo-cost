@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/confirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,7 +110,7 @@ export default function MembersPage() {
                     size="sm"
                     variant="ghost"
                     onClick={async () => {
-                      if (!confirm(t("member.deleteConfirm", { name: m.name }))) return;
+                      if (!(await confirmDialog(t("member.deleteConfirm", { name: m.name }), { title: t("common.delete"), okLabel: t("common.delete") }))) return;
                       try {
                         await softDelete(m.id);
                       } catch (e: unknown) {
