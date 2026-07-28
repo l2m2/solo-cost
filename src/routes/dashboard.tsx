@@ -14,8 +14,11 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Play, CheckCircle } from "lucide-react";
+import { RefreshCw, Play, CheckCircle, Archive } from "lucide-react";
 import { StatusTransitionDialog } from "@/components/tasks/StatusTransitionDialog";
 import { LedgerOverview } from "@/components/dashboard/LedgerOverview";
 import { LedgerPanel, LedgerBar } from "@/components/dashboard/ledgerParts";
@@ -120,22 +123,75 @@ const LEDGER_STATUS_DOT: Record<string, string> = {
   done: INK_SOFT,
 };
 
+const TODO_PAGE_SIZE = 12;
+
 // Todo list styled as a page of the account book, to match LedgerOverview.
+// Filtering and pagination run client-side over the full non-closed task list.
 function TodoTasksCard({
-  rows, count, t, onOpen, onStart, onComplete,
+  rows, t, onOpen, onStart, onComplete, onClose,
 }: {
   rows: DashTaskRow[];
-  count: number;
   t: TFunction;
   onOpen: (projectId: number) => void;
   onStart: (row: DashTaskRow) => void;
   onComplete: (row: DashTaskRow) => void;
+  onClose: (row: DashTaskRow) => void;
 }) {
-  const hidden = count - rows.length;
+  const [statusFilter, setStatusFilter] = useState("__active");
+  const [assigneeFilter, setAssigneeFilter] = useState("__all");
+  const [page, setPage] = useState(1);
+
+  // Distinct assignees present in the current data drive the assignee dropdown.
+  const { assigneeNames, hasUnassigned } = useMemo(() => {
+    const names = new Set<string>();
+    let unassigned = false;
+    for (const r of rows) {
+      if (r.assignee_name) names.add(r.assignee_name);
+      else unassigned = true;
+    }
+    return { assigneeNames: [...names].sort(), hasUnassigned: unassigned };
+  }, [rows]);
+
+  const filtered = useMemo(
+    () => rows.filter((r) => {
+      if (statusFilter !== "__active" && r.status !== statusFilter) return false;
+      if (assigneeFilter === "__unassigned") return r.assignee_name == null;
+      if (assigneeFilter !== "__all") return r.assignee_name === assigneeFilter;
+      return true;
+    }),
+    [rows, statusFilter, assigneeFilter],
+  );
+
+  useEffect(() => { setPage(1); }, [statusFilter, assigneeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / TODO_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * TODO_PAGE_SIZE, currentPage * TODO_PAGE_SIZE);
+
   return (
     <div className="overflow-hidden rounded-lg" style={{ background: PAPER, color: INK, border: `1px solid ${RULE}` }}>
-      <div className="px-5 py-3" style={{ borderBottom: `1px solid ${RULE}` }}>
-        <h3 className="text-sm font-medium" style={SERIF}>{t("dashboard.todoTasks")} ({count})</h3>
+      <div className="flex flex-wrap items-center justify-end gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${RULE}` }}>
+        <div className="flex items-center gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__active">{t("task.activeStatuses")}</SelectItem>
+              <SelectItem value="todo">{t("taskStatus.todo")}</SelectItem>
+              <SelectItem value="in_progress">{t("taskStatus.in_progress")}</SelectItem>
+              <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+            <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">{t("dashboard.allAssignees")}</SelectItem>
+              {hasUnassigned && <SelectItem value="__unassigned">{t("task.unassigned")}</SelectItem>}
+              {assigneeNames.map((n) => (
+                <SelectItem key={n} value={n}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <Table compact>
         <TableHeader>
@@ -145,15 +201,17 @@ function TodoTasksCard({
             <TableHead className="min-w-20" style={{ color: INK_SOFT }}>{t("dashboard.assignee")}</TableHead>
             <TableHead className="w-20" style={{ color: INK_SOFT }}>{t("dashboard.status")}</TableHead>
             <TableHead className="w-28" style={{ color: INK_SOFT }}>{t("dashboard.taskDue")}</TableHead>
+            <TableHead className="w-16 text-right" style={{ color: INK_SOFT }}>预估</TableHead>
+            <TableHead className="w-16 text-right" style={{ color: INK_SOFT }}>实际</TableHead>
             <TableHead className="w-36" style={{ color: INK_SOFT }}>{t("dashboard.startedAt")}</TableHead>
             <TableHead className="w-36" style={{ color: INK_SOFT }}>{t("dashboard.completedAt")}</TableHead>
-            <TableHead className="w-20 text-right" style={{ color: INK_SOFT }}>{t("common.actions")}</TableHead>
+            <TableHead className="w-24 text-right" style={{ color: INK_SOFT }}>{t("common.actions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.length === 0 ? (
-            <TableRow style={{ borderColor: RULE }}><TableCell colSpan={8} className="p-4 text-sm" style={{ color: INK_SOFT }}>{t("dashboard.noTodoTasks")}</TableCell></TableRow>
-          ) : rows.map((r) => (
+          {filtered.length === 0 ? (
+            <TableRow style={{ borderColor: RULE }}><TableCell colSpan={10} className="p-4 text-sm" style={{ color: INK_SOFT }}>{t("dashboard.noTodoTasks")}</TableCell></TableRow>
+          ) : paged.map((r) => (
             <TableRow key={r.task_id} className="hover:bg-black/[0.03]" style={{ borderColor: RULE }}>
               <TableCell>
                 <button
@@ -177,6 +235,8 @@ function TodoTasksCard({
                 </span>
               </TableCell>
               <TableCell className="whitespace-nowrap tabular-nums" style={r.overdue ? { color: VERMILION } : undefined}>{r.due_date ?? "—"}</TableCell>
+              <TableCell className="text-right tabular-nums" style={{ color: INK_SOFT }}>{r.estimated_hours != null ? `${r.estimated_hours}h` : "—"}</TableCell>
+              <TableCell className="text-right tabular-nums" style={{ color: INK_SOFT }}>{r.actual_hours > 0 ? `${r.actual_hours}h` : "—"}</TableCell>
               <TableCell className="whitespace-nowrap tabular-nums" style={{ color: INK_SOFT }}>{r.started_at ?? "—"}</TableCell>
               <TableCell className="whitespace-nowrap tabular-nums" style={{ color: INK_SOFT }}>{r.completed_at ?? "—"}</TableCell>
               <TableCell className="text-right whitespace-nowrap">
@@ -190,14 +250,23 @@ function TodoTasksCard({
                     <CheckCircle className="h-4 w-4" />
                   </Button>
                 )}
+                {r.status === "done" && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title="关闭任务" style={{ color: INK_SOFT }} onClick={() => onClose(r)}>
+                    <Archive className="h-4 w-4" />
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      {hidden > 0 && (
-        <div className="px-5 py-2 text-sm" style={{ color: INK_SOFT, borderTop: `1px solid ${RULE}` }}>
-          {t("dashboard.taskMore", { count: hidden })}
+      {filtered.length > TODO_PAGE_SIZE && (
+        <div className="flex items-center justify-between px-5 py-2 text-sm" style={{ color: INK_SOFT, borderTop: `1px solid ${RULE}` }}>
+          <div>{t("pagination.info", { total: filtered.length, page: currentPage, pages: totalPages })}</div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" className="h-7" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t("pagination.prev")}</Button>
+            <Button size="sm" variant="outline" className="h-7" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t("pagination.next")}</Button>
+          </div>
         </div>
       )}
     </div>
@@ -210,6 +279,7 @@ export default function DashboardPage() {
   const currentId = useCompanyStore((s) => s.currentId);
   const { data, loadedForCompany, loadFor } = useDashboardStore();
   const updateTask = useTasksStore((s) => s.update);
+  const setTaskStatus = useTasksStore((s) => s.setStatus);
   const createTimelog = useTimelogsStore((s) => s.create);
   const [openYear, setOpenYear] = useState<DashYearRow | null>(null);
   const proratedReceipts = useMemo(
@@ -228,6 +298,17 @@ export default function DashboardPage() {
       const task = await call<Task>("get_task", { id: row.task_id });
       if (kind === "start") setStartingTask(task);
       else setCompletingTask(task);
+    } catch (e: unknown) {
+      toast.error(t("common.error", { msg: String(e) }));
+    }
+  };
+
+  // Close (archive) a done task straight from the 待办 tab, then reload so it
+  // drops out of the list.
+  const closeTask = async (row: DashTaskRow) => {
+    try {
+      await setTaskStatus(row.task_id, "closed", row.project_id);
+      if (currentId != null) await loadFor(currentId);
     } catch (e: unknown) {
       toast.error(t("common.error", { msg: String(e) }));
     }
@@ -270,19 +351,23 @@ export default function DashboardPage() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">{t("dashboard.tabOverview")}</TabsTrigger>
+          <TabsTrigger value="todo">{t("dashboard.tabTodo")}</TabsTrigger>
           <TabsTrigger value="ranking">{t("dashboard.tabRanking")}</TabsTrigger>
           <TabsTrigger value="receivables">{t("dashboard.tabReceivables")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-5">
           <LedgerOverview data={data} t={t} onOpenYear={setOpenYear} />
+        </TabsContent>
+
+        <TabsContent value="todo" className="space-y-4">
           <TodoTasksCard
             rows={data.todo_tasks}
-            count={data.todo_task_count}
             t={t}
             onOpen={(projectId) => navigate(`/projects/${projectId}`)}
             onStart={(row) => openTaskAction(row, "start")}
             onComplete={(row) => openTaskAction(row, "complete")}
+            onClose={closeTask}
           />
         </TabsContent>
 

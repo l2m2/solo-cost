@@ -73,6 +73,8 @@ pub struct DashTaskRow {
     pub overdue: bool,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
+    pub estimated_hours: Option<f64>,
+    pub actual_hours: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,10 +98,6 @@ pub struct DashboardSummary {
     pub todo_tasks: Vec<DashTaskRow>,
     pub todo_task_count: i64,
 }
-
-// Cap on how many non-closed tasks the dashboard card lists; the rest are
-// summarised as "还有 M 条…". todo_task_count keeps the full total.
-const TODO_TASKS_LIMIT: usize = 10;
 
 const STATUS_ORDER: [&str; 6] = [
     "negotiating", "pending", "in_progress", "delivered", "settled", "archived",
@@ -416,11 +414,11 @@ pub fn company_dashboard(
     clients.sort_by(|a, b| b.net_cents.cmp(&a.net_cents));
     out.top_clients = clients.into_iter().take(5).collect();
 
-    // todo tasks: non-closed tasks across the company. Unfinished (todo /
-    // in_progress) come before done so the capped view keeps actionable tasks
-    // visible; within that, soonest due first and undated last. A done task past
-    // its due date is not flagged overdue. todo_task_count is the full total;
-    // the card shows at most TODO_TASKS_LIMIT and summarises the rest.
+    // todo tasks: all non-closed tasks across the company (the dedicated "待办"
+    // tab filters and paginates them client-side). Unfinished (todo /
+    // in_progress) come before done, then soonest due first and undated last. A
+    // done task past its due date is not flagged overdue. todo_task_count equals
+    // the returned row count now that the list is uncapped.
     out.todo_task_count = conn.query_row(
         "SELECT COUNT(*)
          FROM tasks t JOIN projects p ON p.id = t.project_id
@@ -431,16 +429,17 @@ pub fn company_dashboard(
     )?;
     let mut tstmt = conn.prepare(
         "SELECT t.id, t.project_id, p.name, t.title, m.name, t.status, t.due_date,
-                t.started_at, t.completed_at
+                t.started_at, t.completed_at, t.estimated_hours,
+                COALESCE((SELECT SUM(hours) FROM time_logs
+                          WHERE task_id = t.id AND deleted_at IS NULL), 0.0) AS actual_hours
          FROM tasks t
          JOIN projects p ON p.id = t.project_id
          LEFT JOIN members m ON m.id = t.assignee_id
          WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND t.deleted_at IS NULL
            AND t.status != 'closed'
-         ORDER BY (t.status = 'done'), (t.due_date IS NULL), t.due_date ASC, t.id ASC
-         LIMIT ?2",
+         ORDER BY (t.status = 'done'), (t.due_date IS NULL), t.due_date ASC, t.id ASC",
     )?;
-    let task_rows = tstmt.query_map(rusqlite::params![company_id, TODO_TASKS_LIMIT as i64], |r| {
+    let task_rows = tstmt.query_map([company_id], |r| {
         let status: String = r.get(5)?;
         let due_date: Option<String> = r.get(6)?;
         let overdue = status != "done" && due_date.as_deref().is_some_and(|d| d < today);
@@ -455,6 +454,8 @@ pub fn company_dashboard(
             overdue,
             started_at: r.get(7)?,
             completed_at: r.get(8)?,
+            estimated_hours: r.get(9)?,
+            actual_hours: r.get(10)?,
         })
     })?;
     out.todo_tasks = task_rows.collect::<rusqlite::Result<_>>()?;
@@ -732,7 +733,7 @@ mod tests {
     }
 
     #[test]
-    fn todo_tasks_capped_but_count_is_full() {
+    fn todo_tasks_uncapped_returns_all() {
         let dir = tempdir().unwrap();
         let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
         conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
@@ -744,7 +745,9 @@ mod tests {
             ).unwrap();
         }
         let d = company_dashboard(&conn, 1, "2026-07-04").unwrap();
+        // The 待办 tab filters/paginates client-side, so the backend returns the
+        // full non-closed list; count and row count now match.
         assert_eq!(d.todo_task_count, 15);
-        assert_eq!(d.todo_tasks.len(), TODO_TASKS_LIMIT);
+        assert_eq!(d.todo_tasks.len(), 15);
     }
 }

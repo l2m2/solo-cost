@@ -364,6 +364,8 @@ export interface DashTaskRow {
   overdue: boolean;
   started_at: string | null;
   completed_at: string | null;
+  estimated_hours: number | null;
+  actual_hours: number;
 }
 export interface DashboardSummary {
   contract_total_inclusive_cents: number;
