@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Fixed
+- 仪表盘年度「到手明细」中，同一项目在同一年有多笔付款时，「提成」「到手」不再在每笔付款行重复显示该项目的全年金额，改为按每笔付款金额占比摊分到各行，两列纵向合计仍与年度汇总一致
+
 ## 0.3.0 (2026-07-08)
 
 ### Added

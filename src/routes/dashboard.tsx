@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -24,6 +24,51 @@ import { call } from "@/lib/ipc";
 import { formatCNY } from "@/lib/money";
 import { statusLabel } from "@/lib/status";
 import type { RankRow, DashYearRow, DashTaskRow, Task, TaskInput } from "@/types";
+
+// The year detail lists one row per receipt, but commission and net are only
+// computed at project-year granularity. Split each project's whole-year
+// commission/net across its receipts weighted by receipt amount, so a project
+// with several payments in a year no longer repeats its full total on every
+// row. The project's last receipt absorbs the rounding remainder, keeping each
+// column's sum exactly equal to the project (and year) total.
+function prorateYearReceipts(
+  year: DashYearRow,
+): { commission_cents: number; net_cents: number }[] {
+  const projById = new Map(year.projects.map((p) => [p.project_id, p]));
+  const totalByProject = new Map<number, number>();
+  const remainingByProject = new Map<number, number>();
+  for (const r of year.receipts) {
+    totalByProject.set(
+      r.project_id,
+      (totalByProject.get(r.project_id) ?? 0) + r.amount_inclusive_cents,
+    );
+    remainingByProject.set(r.project_id, (remainingByProject.get(r.project_id) ?? 0) + 1);
+  }
+  const allocated = new Map<number, { commission: number; net: number }>();
+  return year.receipts.map((r) => {
+    const proj = projById.get(r.project_id);
+    if (!proj) return { commission_cents: 0, net_cents: 0 };
+    const total = totalByProject.get(r.project_id) ?? 0;
+    const acc = allocated.get(r.project_id) ?? { commission: 0, net: 0 };
+    const isLast = (remainingByProject.get(r.project_id) ?? 1) - 1 === 0;
+    remainingByProject.set(r.project_id, (remainingByProject.get(r.project_id) ?? 1) - 1);
+    let commission: number;
+    let net: number;
+    if (isLast || total === 0) {
+      // Last receipt (or a degenerate zero-total project) takes the remainder.
+      commission = proj.commission_cents - acc.commission;
+      net = proj.net_cents - acc.net;
+    } else {
+      commission = Math.round((proj.commission_cents * r.amount_inclusive_cents) / total);
+      net = Math.round((proj.net_cents * r.amount_inclusive_cents) / total);
+    }
+    allocated.set(r.project_id, {
+      commission: acc.commission + commission,
+      net: acc.net + net,
+    });
+    return { commission_cents: commission, net_cents: net };
+  });
+}
 
 // Ledger dot colours for receivable buckets (overdue reads as red ink).
 const LEDGER_BUCKET_DOT: Record<string, string> = {
@@ -167,6 +212,10 @@ export default function DashboardPage() {
   const updateTask = useTasksStore((s) => s.update);
   const createTimelog = useTimelogsStore((s) => s.create);
   const [openYear, setOpenYear] = useState<DashYearRow | null>(null);
+  const proratedReceipts = useMemo(
+    () => (openYear ? prorateYearReceipts(openYear) : []),
+    [openYear],
+  );
   const [startingTask, setStartingTask] = useState<Task | null>(null);
   const [completingTask, setCompletingTask] = useState<Task | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -346,14 +395,15 @@ export default function DashboardPage() {
                     <TableRow><TableCell colSpan={6} className="p-4 text-sm text-muted-foreground">{t("dashboard.empty")}</TableCell></TableRow>
                   ) : openYear.receipts.map((r, i) => {
                     const proj = openYear.projects.find((p) => p.project_id === r.project_id);
+                    const share = proratedReceipts[i];
                     return (
                       <TableRow key={i}>
                         <TableCell className="font-medium">{r.project_name}</TableCell>
                         <TableCell className="text-muted-foreground">{r.name}</TableCell>
                         <TableCell className="text-right tabular-nums" style={SERIF}>{formatCNY(r.amount_inclusive_cents)}</TableCell>
                         <TableCell className="whitespace-nowrap tabular-nums">{r.received_at}</TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">{proj ? formatCNY(proj.commission_cents) : "—"}</TableCell>
-                        <TableCell className="text-right font-medium tabular-nums" style={{ ...SERIF, color: INDIGO }}>{proj ? formatCNY(proj.net_cents) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{proj ? formatCNY(share.commission_cents) : "—"}</TableCell>
+                        <TableCell className="text-right font-medium tabular-nums" style={{ ...SERIF, color: INDIGO }}>{proj ? formatCNY(share.net_cents) : "—"}</TableCell>
                       </TableRow>
                     );
                   })}
