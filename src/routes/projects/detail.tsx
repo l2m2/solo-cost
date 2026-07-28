@@ -1270,7 +1270,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
               <TableHead className="text-right w-20">{t("timelog.hours")}</TableHead>
               <TableHead className="text-right w-28">人力成本</TableHead>
               <TableHead>{t("timelog.notes")}</TableHead>
-              <TableHead className="w-28 text-right">操作</TableHead>
+              <TableHead className="w-32 whitespace-nowrap text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1284,7 +1284,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
                   <TableCell className="text-right">{l.hours}</TableCell>
                   <TableCell className="text-right">{formatCNY(cost)}</TableCell>
                   <TableCell className="text-muted-foreground">{l.notes ?? ""}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="whitespace-nowrap text-right">
                     <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditing(l)}>{t("timelog.edit")}</Button>
                     <Button
                       size="sm"
