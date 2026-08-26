@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+## 0.5.0 (2026-08-26)
 
 ### Added
 - 新增全局搜索：点 Header 右侧的搜索框或按 Cmd+K（Windows / Linux 为 Ctrl+K）随时打开，输入关键字即时匹配项目（按项目名或客户名）与任务（按标题），↑↓ 选择、回车跳转。跳到任务时会自动切到「任务+工时」并定位、高亮那一行，不必再自己翻页查找；只有当该任务被当前筛选挡住时才会放开筛选，否则保留你设好的筛选条件
