@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/confirm";
@@ -716,7 +716,16 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   const [openManageModules, setOpenManageModules] = useState(false);
   const [openZentaoImport, setOpenZentaoImport] = useState(false);
   const [moduleStatsOpen, setModuleStatsOpen] = useState(false);
-  const tasks = byProject[projectId] ?? [];
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusTaskId = Number(searchParams.get("task")) || null;
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  const rowRefs = useRef<Record<number, HTMLTableRowElement | null>>({});
+  // Handed from phase 1 to phase 2 of the focus effect below. A ref, not state,
+  // so setting it does not itself trigger a render.
+  const pendingFocusRef = useRef<number | null>(null);
+  // Memoized because the `?? []` fallback would otherwise hand out a fresh
+  // array every render, re-firing the focus effects below on each one.
+  const tasks = useMemo(() => byProject[projectId] ?? [], [byProject, projectId]);
   const visibleTasks = tasks.filter((tk) => {
     if (statusFilter === "__active") { if (tk.status === "closed") return false; }
     else if (statusFilter !== "__all") { if (tk.status !== statusFilter) return false; }
@@ -736,6 +745,48 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   const currentPage = Math.min(page, totalPages);
   const pagedTasks = visibleTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   useEffect(() => { setPage(1); }, [statusFilter, moduleFilter]);
+
+  // Phase 1 — arrived from the command palette. Clear the filters that could
+  // hide the target (the default drops closed tasks) and park the id in a ref.
+  // The URL param is dropped right away so a later re-render cannot re-trigger.
+  useEffect(() => {
+    if (focusTaskId == null) return;
+    if (tasks.length === 0) return; // wait for the task list to load
+
+    // Gone, or belongs to another project: drop the param and stop.
+    if (!tasks.some((tk) => tk.id === focusTaskId)) {
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
+    pendingFocusRef.current = focusTaskId;
+    setStatusFilter("__all");
+    setModuleFilter("__all");
+    setSearchParams({}, { replace: true });
+  }, [focusTaskId, tasks, setSearchParams]);
+
+  // Phase 2 — filters have settled, so visibleTasks now contains the target.
+  // Runs after the effect above resets the page to 1, which is exactly why this
+  // cannot be folded into phase 1: that reset would clobber the page we set.
+  useEffect(() => {
+    const id = pendingFocusRef.current;
+    if (id == null) return;
+    if (statusFilter !== "__all" || moduleFilter !== "__all") return;
+
+    const index = visibleTasks.findIndex((tk) => tk.id === id);
+    if (index < 0) return;
+
+    pendingFocusRef.current = null;
+    setPage(Math.floor(index / PAGE_SIZE) + 1);
+    setHighlightId(id);
+  }, [visibleTasks, statusFilter, moduleFilter]);
+
+  useEffect(() => {
+    if (highlightId == null) return;
+    rowRefs.current[highlightId]?.scrollIntoView({ block: "center" });
+    const timer = setTimeout(() => setHighlightId(null), 2000);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
 
   const moduleStats: ModuleLaborStat[] = useModuleStatsStore((s) => s.byProject[projectId] ?? []);
   const refreshModuleStats = useModuleStatsStore((s) => s.refresh);
@@ -865,7 +916,11 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                 {pagedTasks.map((tk) => {
                   const assignee = members.find((m) => m.id === tk.assignee_id);
                   return (
-                    <TableRow key={tk.id}>
+                    <TableRow
+                      key={tk.id}
+                      ref={(el) => { rowRefs.current[tk.id] = el; }}
+                      className={highlightId === tk.id ? "bg-amber-100 transition-colors" : undefined}
+                    >
                       <TableCell>
                         <Badge
                           variant="secondary"
