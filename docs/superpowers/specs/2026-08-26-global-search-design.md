@@ -65,11 +65,22 @@ pub struct SearchHit {
 
 ```rust
 #[tauri::command]
-pub fn search(state: State<AppState>, query: String, limit: Option<u32>) -> AppResult<Vec<SearchHit>>
+pub fn search(
+    state: tauri::State<AppState>,
+    company_id: i64,
+    query: String,
+    limit: Option<u32>,
+) -> AppResult<Vec<SearchHit>>
 ```
 
-`limit` 缺省为 8，指**每类**上限，不是总数。公司 id 从 `AppState` 当前公司取，
-与其他命令一致，不由前端传入。
+`limit` 缺省为 8，指**每类**上限，不是总数。
+
+`company_id` **由前端显式传入**，与 `list_projects`、`list_members` 等现有命令
+一致（`AppState` 只持有 `conn`，当前公司存在 `app_meta` 表的
+`current_company_id` 键里，前端通过 company store 拿到后随调用传下来）。
+
+命令体沿用本仓库范式：`#[tauri::command]` 包一层 `with_conn`，真实逻辑放在
+`search_impl(conn, company_id, query, limit)` 里，测试直接测 `search_impl`。
 
 返回的 `Vec` 按**先项目、后任务**拼接，各自内部保持 SQL 的排序。前端直接顺序渲染
 即可得到「项目组在前」的分组效果，不需要再排一次；分组标题按 `kind` 变化处插入。
