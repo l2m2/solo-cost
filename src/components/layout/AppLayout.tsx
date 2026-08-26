@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { CommandPalette } from "@/components/search/CommandPalette";
 
 // A hair-warm workspace so the paper sidebar/header and the ledger dashboard
 // panels sit on a tone that belongs to the same book; content cards stay light.
@@ -16,6 +17,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <CommandPalette />
     </div>
   );
 }
