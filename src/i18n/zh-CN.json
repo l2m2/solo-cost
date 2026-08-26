@@ -368,6 +368,13 @@
     "done": "完成",
     "actions": "操作"
   },
+  "search": {
+    "placeholder": "搜索项目或任务…",
+    "groupProjects": "项目",
+    "groupTasks": "任务",
+    "empty": "没有匹配的项目或任务",
+    "hint": "↑↓ 选择 · 回车跳转 · Esc 关闭"
+  },
   "client": {
     "title": "客户",
     "create": "新建客户",
