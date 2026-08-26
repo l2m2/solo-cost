@@ -42,8 +42,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## 0.2.1 (2026-07-04)
 
-## 0.2.1 (2026-07-04)
-
 ### Added
 - 完工弹框支持录入本次工时，显示已有工时合计，填了自动创建一条工时记录
 
