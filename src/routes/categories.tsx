@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FormDialogContent } from "@/components/ui/form-dialog";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { useCompanyStore } from "@/stores/company";
 import { useCategoriesStore } from "@/stores/categories";
@@ -33,7 +34,7 @@ export default function CategoriesPage() {
     <div className="space-y-4">
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("category.create")}</Button></DialogTrigger>
-          <DialogContent>
+          <FormDialogContent>
             <DialogHeader><DialogTitle>{t("category.create")}</DialogTitle></DialogHeader>
             <NameForm
               onCancel={() => setOpenNew(false)}
@@ -46,7 +47,7 @@ export default function CategoriesPage() {
                 }
               }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
 
       {list.length === 0 ? (
@@ -88,7 +89,7 @@ export default function CategoriesPage() {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>{t("category.edit")}</DialogTitle></DialogHeader>
           {editing && (
             <NameForm
@@ -102,7 +103,7 @@ export default function CategoriesPage() {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );

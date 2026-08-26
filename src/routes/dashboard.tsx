@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { FormDialogContent } from "@/components/ui/form-dialog";
 import { RefreshCw, Play, CheckCircle, Archive } from "lucide-react";
 import { StatusTransitionDialog } from "@/components/tasks/StatusTransitionDialog";
 import { LedgerOverview } from "@/components/dashboard/LedgerOverview";
@@ -500,7 +501,7 @@ export default function DashboardPage() {
       </Dialog>
 
       <Dialog open={!!startingTask} onOpenChange={(o) => !o && setStartingTask(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>开始任务</DialogTitle></DialogHeader>
           {startingTask && (
             <StatusTransitionDialog
@@ -517,11 +518,11 @@ export default function DashboardPage() {
               onCancel={() => setStartingTask(null)}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
 
       <Dialog open={!!completingTask} onOpenChange={(o) => !o && setCompletingTask(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>完成任务</DialogTitle></DialogHeader>
           {completingTask && (
             <StatusTransitionDialog
@@ -548,7 +549,7 @@ export default function DashboardPage() {
               onCancel={() => setCompletingTask(null)}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );

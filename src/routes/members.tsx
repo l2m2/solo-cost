@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FormDialogContent } from "@/components/ui/form-dialog";
 import {
   Dialog,
-  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -46,7 +46,7 @@ export default function MembersPage() {
           <DialogTrigger asChild>
             <Button>{t("member.create")}</Button>
           </DialogTrigger>
-          <DialogContent>
+          <FormDialogContent>
             <DialogHeader>
               <DialogTitle>{t("member.create")}</DialogTitle>
             </DialogHeader>
@@ -61,7 +61,7 @@ export default function MembersPage() {
                 }
               }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
       </div>
 
@@ -128,7 +128,7 @@ export default function MembersPage() {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader>
             <DialogTitle>{t("member.edit")}</DialogTitle>
           </DialogHeader>
@@ -146,7 +146,7 @@ export default function MembersPage() {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );

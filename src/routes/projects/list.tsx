@@ -14,6 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FormDialogContent, useFormDialog } from "@/components/ui/form-dialog";
 import { MoneyInput } from "@/components/forms/MoneyInput";
 import { formatCNY } from "@/lib/money";
 import { STATUS_OPTIONS, statusBadgeClass, statusLabel } from "@/lib/status";
@@ -75,7 +76,7 @@ export default function ProjectsListPage() {
           </Select>
           <Dialog open={openNew} onOpenChange={setOpenNew}>
             <DialogTrigger asChild><Button>{t("project.create")}</Button></DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <FormDialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>{t("project.create")}</DialogTitle></DialogHeader>
               <ProjectForm
                 onCancel={() => setOpenNew(false)}
@@ -86,7 +87,7 @@ export default function ProjectsListPage() {
                   } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
                 }}
               />
-            </DialogContent>
+            </FormDialogContent>
           </Dialog>
         </div>
       </div>
@@ -171,7 +172,7 @@ export default function ProjectsListPage() {
       </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-w-lg">
+        <FormDialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{t("project.edit")}</DialogTitle></DialogHeader>
           {editing && (
             <ProjectForm
@@ -185,7 +186,7 @@ export default function ProjectsListPage() {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );
@@ -201,6 +202,7 @@ function ProjectForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
+  const { markDirty } = useFormDialog();
   const currentId = useCompanyStore((s) => s.currentId);
   const { list: clients, create: createClient } = useClientsStore();
   const [name, setName] = useState(initial?.name ?? "");
@@ -262,7 +264,7 @@ function ProjectForm({
         <div className="space-y-1">
           <Label>{t("project.client")}</Label>
           <div className="flex gap-2">
-            <Select value={clientId} onValueChange={setClientId}>
+            <Select value={clientId} onValueChange={(v) => { markDirty(); setClientId(v); }}>
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder={t("project.selectClient")} />
               </SelectTrigger>
@@ -282,7 +284,7 @@ function ProjectForm({
         </div>
         <div className="space-y-1">
           <Label>状态</Label>
-          <Select value={status} onValueChange={setStatus}>
+          <Select value={status} onValueChange={(v) => { markDirty(); setStatus(v); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map((o) => (
@@ -294,7 +296,7 @@ function ProjectForm({
       </div>
 
       <Dialog open={quickCreate} onOpenChange={setQuickCreate}>
-        <DialogContent className="max-w-sm">
+        <FormDialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>{t("client.create")}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
@@ -314,6 +316,7 @@ function ProjectForm({
               if (!quickName.trim()) return toast.error(t("client.nameRequired"));
               try {
                 const c = await createClient(currentId, { name: quickName.trim() });
+                markDirty();
                 setClientId(String(c.id));
                 setQuickCreate(false);
               } catch (e: unknown) {
@@ -321,7 +324,7 @@ function ProjectForm({
               }
             }}>{t("client.save")}</Button>
           </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -330,7 +333,7 @@ function ProjectForm({
         </div>
         <div className="space-y-1">
           <Label>{t("project.taxInclusive")}</Label>
-          <Select value={inclusive ? "1" : "0"} onValueChange={(v) => setInclusive(v === "1")}>
+          <Select value={inclusive ? "1" : "0"} onValueChange={(v) => { markDirty(); setInclusive(v === "1"); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="1">含税</SelectItem>
@@ -358,7 +361,7 @@ function ProjectForm({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label>{t("project.commissionMode")}</Label>
-            <Select value={commissionMode} onValueChange={setCommissionMode}>
+            <Select value={commissionMode} onValueChange={(v) => { markDirty(); setCommissionMode(v); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">{t("commissionMode.none")}</SelectItem>
@@ -392,7 +395,7 @@ function ProjectForm({
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={commissionSettled}
-              onCheckedChange={(v) => setCommissionSettled(!!v)}
+              onCheckedChange={(v) => { markDirty(); setCommissionSettled(!!v); }}
             />
             {t("project.commissionSettled")}
           </label>

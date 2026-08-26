@@ -36,6 +36,7 @@ import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
 import { Play, CheckCircle, Archive, Clock, ChevronRight, ChevronDown } from "lucide-react";
+import { FormDialogContent, useFormDialog } from "@/components/ui/form-dialog";
 import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
 import type { CostEntry, CostEntryInput, ContractPayment, PaymentInput, Project, Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogInput, TimeLogUpdateInput, ProjectFinancialSummary } from "@/types";
@@ -296,7 +297,7 @@ function CostsPanel({ projectId }: { projectId: number }) {
         </div>
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("cost.add")}</Button></DialogTrigger>
-          <DialogContent>
+          <FormDialogContent>
             <DialogHeader><DialogTitle>{t("cost.add")}</DialogTitle></DialogHeader>
             <CostForm
               cats={cats}
@@ -306,7 +307,7 @@ function CostsPanel({ projectId }: { projectId: number }) {
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
       </div>
 
@@ -372,7 +373,7 @@ function CostsPanel({ projectId }: { projectId: number }) {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>{t("cost.edit")}</DialogTitle></DialogHeader>
           {editing && (
             <CostForm
@@ -387,7 +388,7 @@ function CostsPanel({ projectId }: { projectId: number }) {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );
@@ -405,6 +406,7 @@ function CostForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
+  const { markDirty } = useFormDialog();
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? cats[0]?.id ?? 0);
   const [date, setDate] = useState(initial?.incurred_at ?? new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState(initial?.amount_cents ?? 0);
@@ -433,7 +435,7 @@ function CostForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("cost.category")}</Label>
-          <Select value={String(categoryId)} onValueChange={(v) => setCategoryId(Number(v))}>
+          <Select value={String(categoryId)} onValueChange={(v) => { markDirty(); setCategoryId(Number(v)); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {cats.map((c) => (
@@ -498,7 +500,7 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
       <div className="flex justify-end">
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("payment.create")}</Button></DialogTrigger>
-          <DialogContent>
+          <FormDialogContent>
             <DialogHeader><DialogTitle>{t("payment.create")}</DialogTitle></DialogHeader>
             <PaymentForm
               onCancel={() => setOpenNew(false)}
@@ -507,7 +509,7 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
       </div>
 
@@ -564,7 +566,7 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>{t("payment.edit")}</DialogTitle></DialogHeader>
           {editing && (
             <PaymentForm
@@ -576,11 +578,11 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
 
       <Dialog open={!!marking} onOpenChange={(o) => !o && setMarking(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>{t("payment.markReceived")}</DialogTitle></DialogHeader>
           {marking && (
             <MarkReceivedForm
@@ -594,7 +596,7 @@ function PaymentsPanel({ projectId }: { projectId: number }) {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );
@@ -781,7 +783,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
         </div>
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("task.create")}</Button></DialogTrigger>
-          <DialogContent>
+          <FormDialogContent>
             <DialogHeader><DialogTitle>{t("task.create")}</DialogTitle></DialogHeader>
             <TaskForm
               members={members}
@@ -792,7 +794,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
       </div>
 
@@ -951,7 +953,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>{t("task.edit")}</DialogTitle></DialogHeader>
           {editing && (
             <TaskForm
@@ -982,7 +984,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
 
       <Dialog open={!!openLogs} onOpenChange={(o) => !o && setOpenLogs(null)}>
@@ -995,7 +997,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
       </Dialog>
 
       <Dialog open={openManageModules} onOpenChange={setOpenManageModules}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader>
             <DialogTitle>{t("module.manage")}</DialogTitle>
           </DialogHeader>
@@ -1009,7 +1011,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
             moveModuleDown={moveModuleDown}
             softDeleteModule={softDeleteModule}
           />
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
 
       <ZentaoImportDialog
@@ -1020,7 +1022,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
       />
 
       <Dialog open={!!startingTask} onOpenChange={(o) => !o && setStartingTask(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>开始任务</DialogTitle></DialogHeader>
           {startingTask && (
             <StatusTransitionDialog
@@ -1034,11 +1036,11 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               onCancel={() => setStartingTask(null)}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
 
       <Dialog open={!!completingTask} onOpenChange={(o) => !o && setCompletingTask(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>完成任务</DialogTitle></DialogHeader>
           {completingTask && (
             <StatusTransitionDialog
@@ -1065,7 +1067,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
               onCancel={() => setCompletingTask(null)}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );
@@ -1093,6 +1095,7 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel, onClose, onDe
   onDelete?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const { markDirty } = useFormDialog();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [assigneeId, setAssigneeId] = useState<string>(
@@ -1149,7 +1152,7 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel, onClose, onDe
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("task.assignee")}</Label>
-          <Select value={assigneeId} onValueChange={setAssigneeId}>
+          <Select value={assigneeId} onValueChange={(v) => { markDirty(); setAssigneeId(v); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__none">{t("task.unassigned")}</SelectItem>
@@ -1188,7 +1191,7 @@ function TaskForm({ members, modules, initial, onSubmit, onCancel, onClose, onDe
       </div>
       <div className="space-y-1">
         <Label>{t("task.module")}</Label>
-        <Select value={moduleId} onValueChange={setModuleId}>
+        <Select value={moduleId} onValueChange={(v) => { markDirty(); setModuleId(v); }}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__none">{t("module.unassigned")}</SelectItem>
@@ -1244,7 +1247,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
       <div className="flex justify-end">
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button size="sm">{t("timelog.add")}</Button></DialogTrigger>
-          <DialogContent>
+          <FormDialogContent>
             <DialogHeader><DialogTitle>{t("timelog.add")}</DialogTitle></DialogHeader>
             <TimeLogForm
               taskId={task.id}
@@ -1255,7 +1258,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
       </div>
 
@@ -1305,7 +1308,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>{t("timelog.edit")}</DialogTitle></DialogHeader>
           {editing && (
             <TimeLogEditForm
@@ -1317,7 +1320,7 @@ function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );
@@ -1330,6 +1333,7 @@ function TimeLogForm({ taskId, members, onSubmit, onCancel }: {
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
+  const { markDirty } = useFormDialog();
   const [memberId, setMemberId] = useState(members[0]?.id ?? 0);
   const [date, setDate] = useState(todayIso());
   const [hours, setHours] = useState(8);
@@ -1357,7 +1361,7 @@ function TimeLogForm({ taskId, members, onSubmit, onCancel }: {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>{t("timelog.member")}</Label>
-          <Select value={String(memberId)} onValueChange={(v) => setMemberId(Number(v))}>
+          <Select value={String(memberId)} onValueChange={(v) => { markDirty(); setMemberId(Number(v)); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {members.map((m) => (

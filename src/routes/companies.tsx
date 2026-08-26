@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormDialogContent } from "@/components/ui/form-dialog";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { useCompanyStore } from "@/stores/company";
 import type { Company, CompanyInput } from "@/types";
@@ -86,13 +87,13 @@ export default function CompaniesPage() {
     <div className="space-y-4">
         <Dialog open={openNew} onOpenChange={setOpenNew}>
           <DialogTrigger asChild><Button>{t("company.create")}</Button></DialogTrigger>
-          <DialogContent>
+          <FormDialogContent>
             <DialogHeader><DialogTitle>{t("company.create")}</DialogTitle></DialogHeader>
             <CompanyForm
               onCancel={() => setOpenNew(false)}
               onSubmit={async (input) => { await create(input); setOpenNew(false); }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
 
       {list.length === 0 ? (
@@ -121,7 +122,7 @@ export default function CompaniesPage() {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
+        <FormDialogContent>
           <DialogHeader><DialogTitle>{t("company.edit")}</DialogTitle></DialogHeader>
           {editing && (
             <CompanyForm
@@ -130,7 +131,7 @@ export default function CompaniesPage() {
               onSubmit={async (input) => { await update(editing.id, input); setEditing(null); }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );

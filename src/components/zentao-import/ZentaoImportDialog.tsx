@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FormDialogContent } from "@/components/ui/form-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -155,7 +156,7 @@ export default function ZentaoImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <FormDialogContent className="max-w-3xl" dirty={filePath !== null}>
         <DialogHeader>
           <DialogTitle>{t("zentaoImport.title")}</DialogTitle>
         </DialogHeader>
@@ -360,7 +361,7 @@ export default function ZentaoImportDialog({
             <Button onClick={finish}>{t("common.done")}</Button>
           )}
         </DialogFooter>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

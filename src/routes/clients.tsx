@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { FormDialogContent } from "@/components/ui/form-dialog";
 import {
   Dialog,
-  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -46,7 +46,7 @@ export default function ClientsPage() {
           <DialogTrigger asChild>
             <Button>{t("client.create")}</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <FormDialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{t("client.create")}</DialogTitle>
             </DialogHeader>
@@ -61,7 +61,7 @@ export default function ClientsPage() {
                 }
               }}
             />
-          </DialogContent>
+          </FormDialogContent>
         </Dialog>
       </div>
 
@@ -125,7 +125,7 @@ export default function ClientsPage() {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-w-lg">
+        <FormDialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("client.edit")}</DialogTitle>
           </DialogHeader>
@@ -143,7 +143,7 @@ export default function ClientsPage() {
               }}
             />
           )}
-        </DialogContent>
+        </FormDialogContent>
       </Dialog>
     </div>
   );
