@@ -3,6 +3,9 @@ import { call } from "@/lib/ipc";
 import type { SearchHit } from "@/types";
 
 type SearchState = {
+  // Lifted out of CommandPalette so the Header trigger can open it too.
+  open: boolean;
+  setOpen: (v: boolean) => void;
   hits: SearchHit[];
   loading: boolean;
   run: (companyId: number, query: string) => Promise<void>;
@@ -13,6 +16,8 @@ type SearchState = {
 let seq = 0;
 
 export const useSearchStore = create<SearchState>((set) => ({
+  open: false,
+  setOpen: (v) => set({ open: v }),
   hits: [],
   loading: false,
 

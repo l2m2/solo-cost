@@ -52,6 +52,19 @@ export default function ProjectDetailPage() {
   const setProjectStatus = useProjectsStore((s) => s.setStatus);
   const [project, setProject] = useState<Project | null>(null);
 
+  // A ?task= deep link targets the tasks tab. Radix unmounts inactive tab
+  // content, so without this the panel that consumes the param never mounts
+  // and the link silently does nothing but open the project.
+  const [detailSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() =>
+    detailSearchParams.get("task") ? "tasks" : "overview"
+  );
+  // The initializer covers a fresh mount; this covers arriving at the same
+  // project that is already open, where the route does not remount.
+  useEffect(() => {
+    if (detailSearchParams.get("task")) setTab("tasks");
+  }, [detailSearchParams]);
+
   useEffect(() => {
     if (Number.isNaN(pid)) return;
     call<Project>("get_project", { id: pid })
@@ -115,7 +128,7 @@ export default function ProjectDetailPage() {
         </Select>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="overview">概览</TabsTrigger>
           <TabsTrigger value="costs">成本</TabsTrigger>
@@ -760,10 +773,14 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
     }
 
     pendingFocusRef.current = focusTaskId;
-    setStatusFilter("__all");
-    setModuleFilter("__all");
+    // Only clear the filters when they would actually hide the target. A deep
+    // link should not silently throw away the filter the user had set.
+    if (!visibleTasks.some((tk) => tk.id === focusTaskId)) {
+      setStatusFilter("__all");
+      setModuleFilter("__all");
+    }
     setSearchParams({}, { replace: true });
-  }, [focusTaskId, tasks, setSearchParams]);
+  }, [focusTaskId, tasks, visibleTasks, setSearchParams]);
 
   // Phase 2 — filters have settled, so visibleTasks now contains the target.
   // Runs after the effect above resets the page to 1, which is exactly why this
@@ -771,15 +788,16 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
   useEffect(() => {
     const id = pendingFocusRef.current;
     if (id == null) return;
-    if (statusFilter !== "__all" || moduleFilter !== "__all") return;
 
+    // Not here yet: phase 1 just relaxed the filters and visibleTasks has not
+    // caught up. Wait for the next pass rather than guessing a page.
     const index = visibleTasks.findIndex((tk) => tk.id === id);
     if (index < 0) return;
 
     pendingFocusRef.current = null;
     setPage(Math.floor(index / PAGE_SIZE) + 1);
     setHighlightId(id);
-  }, [visibleTasks, statusFilter, moduleFilter]);
+  }, [visibleTasks]);
 
   useEffect(() => {
     if (highlightId == null) return;
