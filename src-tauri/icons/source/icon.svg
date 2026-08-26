@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="72 72 880 880">
-  <!-- Browser tab icon. Same artwork as src-tauri/icons/source/icon.svg,
-       cropped to the plate since a tab has no dock padding to match.
-       Edit that file first, then regenerate this one. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Source of truth for the app icon. Regenerate the PNG/ICNS/ICO set with:
+       pnpm tauri icon src-tauri/icons/source/icon-1024.png
+       (render this file to icon-1024.png first; see README in this folder) -->
   <defs>
     <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#26221D"/>

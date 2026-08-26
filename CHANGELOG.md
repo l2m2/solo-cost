@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Changed
+- 应用图标换成与「账本」视觉一致的沙漏标识：墨底、宣纸色沙漏，上半朱砂表示尚未支出的时间，下半靛蓝表示沉淀下来的钱。此前一直沿用的是脚手架自带的默认图标。浏览器标签页图标同步更换
+
 ## 0.4.0 (2026-07-28)
 
 ### Added
