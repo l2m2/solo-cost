@@ -387,3 +387,11 @@ export interface DashboardSummary {
   todo_tasks: DashTaskRow[];
   todo_task_count: number;
 }
+
+export type SearchHit = {
+  kind: "project" | "task";
+  id: number;
+  title: string;
+  subtitle: string | null;
+  project_id: number;
+};
