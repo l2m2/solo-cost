@@ -1,6 +1,6 @@
 [package]
 name = "solo-cost"
-version = "0.5.0"
+version = "0.6.0"
 description = "solo-cost desktop app"
 authors = ["l2m2"]
 license = ""

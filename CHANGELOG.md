@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## 0.6.0 (2026-08-27)
 
 ### Added
 - 任务新增「已暂停」状态：待客户确认、等第三方接口这类被外部因素卡住的任务，不必再挂在「进行中」充数，暂停时必须填写原因；暂停的任务可以恢复，也可以直接标记完成或关闭
