@@ -274,6 +274,16 @@
     "done": "已完成",
     "closed": "已关闭"
   },
+  "timeline": {
+    "title": "动态",
+    "empty": "暂无动态",
+    "notePlaceholder": "写点什么…… 例如今天卡在哪儿了",
+    "addNote": "添加备注",
+    "loggedHours": "记录工时 {{hours}}h",
+    "created": "创建任务",
+    "changed": "{{from}} → {{to}}",
+    "noteDeleteConfirm": "确认删除这条备注？删除后无法从回收站恢复。"
+  },
   "pagination": {
     "info": "共 {{total}} 条 · 第 {{page}} / {{pages}} 页",
     "prev": "上一页",
