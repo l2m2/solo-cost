@@ -114,9 +114,10 @@ export function Timeline({
   );
 }
 
-// Fixed width and tabular figures so every row's date starts at the same x and
-// the times line up under each other, leaving a blank where a time_log has no
-// clock time to show.
+// Last in the row, and left-aligned inside a fixed width: every stamp opens
+// with the same ten-character date, so aligning left puts those dates in a
+// true column and lets the optional time trail off. Right-aligning would
+// flush the ragged end instead and stagger the dates.
 function Stamp({ value }: { value: string }) {
   return (
     <span className="w-32 shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums">
@@ -127,7 +128,7 @@ function Stamp({ value }: { value: string }) {
 
 // Every row reserves this slot whether or not it has buttons. Status changes
 // are a record and cannot be edited, but if their rows skipped the slot the
-// stamp column would sit further right on them than on the editable rows.
+// stamp column would shift on them relative to the editable rows.
 const ACTIONS_SLOT = "w-14 shrink-0";
 
 function RowActions({ onEdit, onDelete }: { onEdit?: () => void; onDelete?: () => void }) {
@@ -158,8 +159,8 @@ function LogRow({ log, who, onEdit, onDelete }: {
         <span className="text-sm flex-1">
           {t("timeline.loggedHours", { hours: log.hours })} · {who}
         </span>
-        <Stamp value={log.work_date} />
         <RowActions onEdit={onEdit} onDelete={onDelete} />
+        <Stamp value={log.work_date} />
       </div>
       {log.notes && <div className="ml-6 text-sm text-muted-foreground">{log.notes}</div>}
     </div>
@@ -189,11 +190,11 @@ function EventRow({ event, onEdit, onDelete }: {
           ? <MessageSquare className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
           : <GitCommitHorizontal className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />}
         <span className="text-sm flex-1">{headline ?? event.body}</span>
-        <Stamp value={event.occurred_at} />
         <RowActions
           onEdit={isNote ? onEdit : undefined}
           onDelete={isNote ? onDelete : undefined}
         />
+        <Stamp value={event.occurred_at} />
       </div>
       {!isNote && event.body && (
         <div className="ml-6 text-sm text-muted-foreground">{event.body}</div>
