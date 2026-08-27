@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/confirm";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -28,14 +28,14 @@ import { Play, Pause, PlayCircle, CheckCircle, Archive, Clock, ChevronRight, Che
 import { FormDialogContent, useFormDialog } from "@/components/ui/form-dialog";
 import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
-import TimeLogForm from "@/components/tasks/TimeLogForm";
 import type { Member, Module, ModuleLaborStat, Task, TaskInput, TimeLog, TimeLogUpdateInput } from "@/types";
 
 // ─── Tasks + TimeLogs ───────────────────────────────────────────────────────
 
 export default function TasksPanel({ projectId, companyId }: { projectId: number; companyId: number }) {
   const { t } = useTranslation();
-  const { byProject, loadFor, create, update, setStatus, softDelete } = useTasksStore();
+  const navigate = useNavigate();
+  const { byProject, loadFor, create, update, setStatus } = useTasksStore();
   const { create: createTimelog } = useTimelogsStore();
   const {
     byProject: modulesByProject,
@@ -73,8 +73,6 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
   });
   const { list: members, loadedForCompany: membersLoadedFor, loadFor: loadMembers } = useMembersStore();
   const [openNew, setOpenNew] = useState(false);
-  const [editing, setEditing] = useState<Task | null>(null);
-  const [openLogs, setOpenLogs] = useState<Task | null>(null);
   const [startingTask, setStartingTask] = useState<Task | null>(null);
   const [completingTask, setCompletingTask] = useState<Task | null>(null);
   const [pausingTask, setPausingTask] = useState<Task | null>(null);
@@ -276,7 +274,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
                       <TableCell className="font-medium">
                         <button
                           className="text-left hover:underline cursor-pointer"
-                          onClick={() => setEditing(tk)}
+                          onClick={() => navigate(`/projects/${projectId}/tasks/${tk.id}`)}
                         >{tk.title}</button>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{assignee?.name ?? "—"}</TableCell>
@@ -338,7 +336,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
                           variant="ghost"
                           className="h-7 px-2"
                           title={t("timelog.title")}
-                          onClick={() => setOpenLogs(tk)}
+                          onClick={() => navigate(`/projects/${projectId}/tasks/${tk.id}`)}
                         ><Clock className="h-4 w-4" /></Button>
                       </TableCell>
                     </TableRow>
@@ -370,50 +368,6 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
           </CardContent>
         </Card>
       )}
-
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <FormDialogContent>
-          <DialogHeader><DialogTitle>{t("task.edit")}</DialogTitle></DialogHeader>
-          {editing && (
-            <TaskForm
-              members={members}
-              modules={modules}
-              initial={editing}
-              onCancel={() => setEditing(null)}
-              onSubmit={async (input) => {
-                try { await update(editing.id, input, projectId); setEditing(null); }
-                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-              }}
-              onClose={async () => {
-                try { await setStatus(editing.id, { to: "closed" }, projectId); setEditing(null); }
-                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-              }}
-              onDelete={async () => {
-                // Native window.confirm() does not reliably block in this Tauri
-                // webview, so use the plugin dialog's async confirm instead.
-                const ok = await confirmDialog(t("task.deleteConfirm", { title: editing.title }), {
-                  title: t("task.delete"),
-                  kind: "warning",
-                  okLabel: t("task.delete"),
-                  cancelLabel: t("common.cancel"),
-                });
-                if (!ok) return;
-                try { await softDelete(editing.id, projectId); setEditing(null); }
-                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-              }}
-            />
-          )}
-        </FormDialogContent>
-      </Dialog>
-
-      <Dialog open={!!openLogs} onOpenChange={(o) => !o && setOpenLogs(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{openLogs?.title ? `${openLogs.title} - ${t("timelog.title")}` : t("timelog.title")}</DialogTitle>
-          </DialogHeader>
-          {openLogs && <TimeLogsSection task={openLogs} members={members} />}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={openManageModules} onOpenChange={setOpenManageModules}>
         <FormDialogContent>
@@ -536,14 +490,12 @@ export function fromDatetimeLocal(v: string): string | null {
   return v.replace("T", " ");
 }
 
-export function TaskForm({ members, modules, initial, onSubmit, onCancel, onClose, onDelete }: {
+export function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
   members: Member[];
   modules: Module[];
   initial?: Task;
   onSubmit: (input: TaskInput) => Promise<void>;
   onCancel: () => void;
-  onClose?: () => Promise<void>;
-  onDelete?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   const { markDirty } = useFormDialog();
@@ -657,122 +609,9 @@ export function TaskForm({ members, modules, initial, onSubmit, onCancel, onClos
         <Textarea value={description ?? ""} onChange={(e) => setDescription(e.target.value)} />
       </div>
       <DialogFooter>
-        {initial && onClose && initial.status === "done" && (
-          <Button
-            variant="outline"
-            onClick={async () => { setBusy(true); try { await onClose(); } finally { setBusy(false); } }}
-            disabled={busy}
-          >关闭任务</Button>
-        )}
-        {initial && onDelete && (
-          <Button
-            variant="destructive"
-            onClick={async () => { setBusy(true); try { await onDelete(); } finally { setBusy(false); } }}
-            disabled={busy}
-          >删除</Button>
-        )}
-        <div className="flex-1" />
         <Button variant="outline" onClick={onCancel} disabled={busy}>{t("common.cancel")}</Button>
         <Button onClick={submit} disabled={busy}>{t("task.save")}</Button>
       </DialogFooter>
-    </div>
-  );
-}
-
-export function TimeLogsSection({ task, members }: { task: Task; members: Member[] }) {
-  const { t } = useTranslation();
-  const { byTask, loadFor, create, update, softDelete } = useTimelogsStore();
-  const logs = byTask[task.id] ?? [];
-  const [openNew, setOpenNew] = useState(false);
-  const [editing, setEditing] = useState<TimeLog | null>(null);
-
-  useEffect(() => { loadFor(task.id); }, [task.id, loadFor]);
-
-  const activeMembers = members.filter((m) => m.is_active);
-  const findMemberName = (mid: number) =>
-    members.find((m) => m.id === mid)?.name ?? `#${mid}`;
-
-  return (
-    <div className="space-y-3">
-      <div className="text-xs text-muted-foreground">{t("timelog.snapshotHint")}</div>
-      <div className="flex justify-end">
-        <Dialog open={openNew} onOpenChange={setOpenNew}>
-          <DialogTrigger asChild><Button size="sm">{t("timelog.add")}</Button></DialogTrigger>
-          <FormDialogContent>
-            <DialogHeader><DialogTitle>{t("timelog.add")}</DialogTitle></DialogHeader>
-            <TimeLogForm
-              taskId={task.id}
-              members={activeMembers}
-              onCancel={() => setOpenNew(false)}
-              onSubmit={async (input) => {
-                try { await create(input, task.project_id); setOpenNew(false); }
-                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-              }}
-            />
-          </FormDialogContent>
-        </Dialog>
-      </div>
-
-      {logs.length === 0 ? (
-        <div className="p-6 text-sm text-muted-foreground text-center">{t("timelog.empty")}</div>
-      ) : (
-        <Table compact>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-28">{t("timelog.workDate")}</TableHead>
-              <TableHead className="w-28">{t("timelog.member")}</TableHead>
-              <TableHead className="text-right w-20">{t("timelog.hours")}</TableHead>
-              <TableHead className="text-right w-28">人力成本</TableHead>
-              <TableHead>{t("timelog.notes")}</TableHead>
-              <TableHead className="w-32 whitespace-nowrap text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {logs.map((l) => {
-              // hours / 8 * snapshot cost, rounded to nearest cent
-              const cost = Math.round((l.hours / 8) * l.daily_cost_snapshot_cents);
-              return (
-                <TableRow key={l.id}>
-                  <TableCell>{l.work_date}</TableCell>
-                  <TableCell>{findMemberName(l.member_id)}</TableCell>
-                  <TableCell className="text-right">{l.hours}</TableCell>
-                  <TableCell className="text-right">{formatCNY(cost)}</TableCell>
-                  <TableCell className="text-muted-foreground">{l.notes ?? ""}</TableCell>
-                  <TableCell className="whitespace-nowrap text-right">
-                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditing(l)}>{t("timelog.edit")}</Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2"
-                      onClick={async () => {
-                        if (!(await confirmDialog(t("timelog.deleteConfirm"), { title: t("common.delete"), okLabel: t("common.delete") }))) return;
-                        try { await softDelete(l.id, task.id, task.project_id); }
-                        catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-                      }}
-                    >{t("timelog.delete")}</Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
-
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <FormDialogContent>
-          <DialogHeader><DialogTitle>{t("timelog.edit")}</DialogTitle></DialogHeader>
-          {editing && (
-            <TimeLogEditForm
-              initial={editing}
-              onCancel={() => setEditing(null)}
-              onSubmit={async (input) => {
-                try { await update(editing.id, input, task.id, task.project_id); setEditing(null); }
-                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-              }}
-            />
-          )}
-        </FormDialogContent>
-      </Dialog>
     </div>
   );
 }

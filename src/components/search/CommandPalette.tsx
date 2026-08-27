@@ -68,7 +68,7 @@ export function CommandPalette() {
     navigate(
       hit.kind === "project"
         ? `/projects/${hit.project_id}`
-        : `/projects/${hit.project_id}?task=${hit.id}`
+        : `/projects/${hit.project_id}/tasks/${hit.id}`
     );
     close();
   };

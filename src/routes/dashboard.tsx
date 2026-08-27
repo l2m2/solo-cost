@@ -130,11 +130,12 @@ const TODO_PAGE_SIZE = 12;
 // Todo list styled as a page of the account book, to match LedgerOverview.
 // Filtering and pagination run client-side over the full non-closed task list.
 function TodoTasksCard({
-  rows, t, onOpen, onStart, onPause, onResume, onComplete, onClose,
+  rows, t, onOpen, onOpenTask, onStart, onPause, onResume, onComplete, onClose,
 }: {
   rows: DashTaskRow[];
   t: TFunction;
   onOpen: (projectId: number) => void;
+  onOpenTask: (projectId: number, taskId: number) => void;
   onStart: (row: DashTaskRow) => void;
   onPause: (row: DashTaskRow) => void;
   onResume: (row: DashTaskRow) => void;
@@ -228,7 +229,7 @@ function TodoTasksCard({
                 </button>
               </TableCell>
               <TableCell className="font-medium">
-                <button className="text-left hover:underline cursor-pointer" onClick={() => onOpen(r.project_id)}>
+                <button className="text-left hover:underline cursor-pointer" onClick={() => onOpenTask(r.project_id, r.task_id)}>
                   {r.title}
                 </button>
               </TableCell>
@@ -387,6 +388,7 @@ export default function DashboardPage() {
             rows={data.todo_tasks}
             t={t}
             onOpen={(projectId) => navigate(`/projects/${projectId}`)}
+            onOpenTask={(p, id) => navigate(`/projects/${p}/tasks/${id}`)}
             onStart={(row) => openTaskAction(row, "start")}
             onPause={(row) => openTaskAction(row, "pause")}
             onResume={(row) => openTaskAction(row, "resume")}
