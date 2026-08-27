@@ -194,6 +194,12 @@ export default function TaskDetailPage() {
       <Card>
         <CardContent className="p-4">
           <TaskForm
+            // TaskForm seeds its started_at/completed_at state from `initial`
+            // only on mount. A status transition rewrites those columns and
+            // bumps updated_at server-side; keying on both forces a remount
+            // so the form picks up the fresh values instead of resubmitting
+            // stale ones on the next save.
+            key={`${task.id}-${task.updated_at}`}
             members={members}
             modules={modules}
             initial={task}
