@@ -125,9 +125,15 @@ function Stamp({ value }: { value: string }) {
   );
 }
 
-function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+// Every row reserves this slot whether or not it has buttons. Status changes
+// are a record and cannot be edited, but if their rows skipped the slot the
+// stamp column would sit further right on them than on the editable rows.
+const ACTIONS_SLOT = "w-14 shrink-0";
+
+function RowActions({ onEdit, onDelete }: { onEdit?: () => void; onDelete?: () => void }) {
+  if (!onEdit || !onDelete) return <span className={ACTIONS_SLOT} aria-hidden />;
   return (
-    <span className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+    <span className={`${ACTIONS_SLOT} flex justify-end opacity-0 transition-opacity group-hover:opacity-100`}>
       <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={onEdit}>
         <Pencil className="h-3.5 w-3.5" />
       </Button>
@@ -184,7 +190,10 @@ function EventRow({ event, onEdit, onDelete }: {
           : <GitCommitHorizontal className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />}
         <span className="text-sm flex-1">{headline ?? event.body}</span>
         <Stamp value={event.occurred_at} />
-        {isNote && <RowActions onEdit={onEdit} onDelete={onDelete} />}
+        <RowActions
+          onEdit={isNote ? onEdit : undefined}
+          onDelete={isNote ? onDelete : undefined}
+        />
       </div>
       {!isNote && event.body && (
         <div className="ml-6 text-sm text-muted-foreground">{event.body}</div>
