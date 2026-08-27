@@ -7,6 +7,7 @@ interface S {
   loadedForCompany: number | null;
   loadFor: (companyId: number) => Promise<void>;
   reset: () => void;
+  invalidate: () => void;
 }
 
 export const useDashboardStore = create<S>((set) => ({
@@ -23,5 +24,12 @@ export const useDashboardStore = create<S>((set) => ({
   },
   reset() {
     set({ data: null, loadedForCompany: null });
+  },
+  // Clears the loaded marker (but keeps the stale data on screen) so the
+  // dashboard's `loadedForCompany !== currentId` guard lets it refetch next
+  // time it mounts, without forcing a "loading" flash on whoever holds a
+  // reference to this store right now.
+  invalidate() {
+    set({ loadedForCompany: null });
   },
 }));

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { call } from "@/lib/ipc";
 import type { StatusChange, Task, TaskInput } from "@/types";
+import { useDashboardStore } from "./dashboard";
 import { useFinancialStore } from "./financial";
 import { useModuleStatsStore } from "./moduleStats";
 import { useTaskEventsStore } from "./taskEvents";
@@ -42,12 +43,18 @@ export const useTasksStore = create<S>((set, get) => ({
     await get().loadFor(projectId, get().statusFilter);
     await useModuleStatsStore.getState().refresh(projectId);
     await refreshEventsIfLoaded(id);
+    // A mutation here may have happened from the task detail page, which the
+    // dashboard's todo card can navigate into. Without this, the dashboard's
+    // "already loaded for this company" guard would keep showing the task's
+    // pre-mutation status/overdue flag until something else forces a reload.
+    useDashboardStore.getState().invalidate();
     return t;
   },
   async setStatus(id, change, projectId) {
     await call<Task>("set_task_status", { id, change });
     await get().loadFor(projectId, get().statusFilter);
     await refreshEventsIfLoaded(id);
+    useDashboardStore.getState().invalidate();
   },
   async softDelete(id, projectId) {
     // Task delete cascades to time_logs, which affects labor cost
@@ -57,6 +64,7 @@ export const useTasksStore = create<S>((set, get) => ({
     } finally {
       await useFinancialStore.getState().refresh(projectId);
       await useModuleStatsStore.getState().refresh(projectId);
+      useDashboardStore.getState().invalidate();
     }
   },
   reset() {

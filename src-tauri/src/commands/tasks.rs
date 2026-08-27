@@ -167,9 +167,12 @@ fn apply_transition(conn: &Connection, id: i64, change: &StatusChange) -> AppRes
          WHERE id = ?2 AND deleted_at IS NULL",
         rusqlite::params![change.to, id],
     )?;
+    // 'localtime': occurred_at is compared against timestamps typed into the
+    // datetime-local picker (local wall-clock), so the fallback must be on the
+    // same clock or a same-minute pause/note pair sorts hours apart.
     conn.execute(
         "INSERT INTO task_events(task_id, kind, from_status, to_status, body, occurred_at)
-         VALUES(?1, 'status_change', ?2, ?3, ?4, COALESCE(?5, datetime('now')))",
+         VALUES(?1, 'status_change', ?2, ?3, ?4, COALESCE(?5, datetime('now','localtime')))",
         rusqlite::params![id, from, change.to, body, change.occurred_at.as_deref()],
     )?;
     Ok(true)
@@ -199,9 +202,16 @@ fn seed_creation_events(conn: &Connection, id: i64) -> AppResult<()> {
          FROM tasks WHERE id = ?1 AND completed_at IS NOT NULL",
         [id],
     )?;
+    // occurred_at uses MAX(created_at, started_at) rather than created_at alone:
+    // a task can be 'done' with started_at set but completed_at NULL (zentao
+    // import with a blank finish date), and created_at alone would place this
+    // catch-all event before the in_progress event seeded above it, showing
+    // the task as finished before it started. Kept identical to the 0009
+    // migration's catch-all so imported and migrated tasks agree.
     conn.execute(
         "INSERT INTO task_events(task_id, kind, from_status, to_status, occurred_at)
-         SELECT t.id, 'status_change', NULL, t.status, t.created_at
+         SELECT t.id, 'status_change', NULL, t.status,
+                MAX(t.created_at, COALESCE(t.started_at, t.created_at))
          FROM tasks t
          WHERE t.id = ?1
            AND NOT EXISTS (
@@ -665,6 +675,43 @@ mod tests {
         i.created_at = Some("2026-01-01 08:00:00".into());
         let t = create_impl(&db.conn, 1, &i).unwrap();
         assert_eq!(event_count(&db.conn, t.id), 3);
+    }
+
+    #[test]
+    fn create_with_started_but_no_completed_orders_done_after_in_progress() {
+        // Mirrors a zentao import whose 完成日期 was left blank: status is
+        // 'done' but completed_at is NULL, so the third targeted insert in
+        // seed_creation_events never fires and the catch-all has to produce
+        // the 'done' event. Before the fix it fell back to created_at, which
+        // sorts before the 'in_progress' event seeded from started_at.
+        let db = TestDb::new();
+        let mut i = input("T");
+        i.status = Some("done".into());
+        i.started_at = Some("2026-01-02 09:00:00".into());
+        i.created_at = Some("2026-01-01 08:00:00".into());
+        let t = create_impl(&db.conn, 1, &i).unwrap();
+
+        let mut stmt = db
+            .conn
+            .prepare(
+                "SELECT to_status, occurred_at FROM task_events
+                 WHERE task_id = ?1 ORDER BY occurred_at ASC, id ASC",
+            )
+            .unwrap();
+        let rows: Vec<(String, String)> = stmt
+            .query_map([t.id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        let statuses: Vec<&str> = rows.iter().map(|(s, _)| s.as_str()).collect();
+        assert_eq!(statuses, vec!["todo", "in_progress", "done"]);
+
+        let in_progress_at = &rows[1].1;
+        let done_at = &rows[2].1;
+        assert!(
+            done_at.as_str() >= in_progress_at.as_str(),
+            "done ({done_at}) must not be ordered before in_progress ({in_progress_at})"
+        );
     }
 
     fn event_count(conn: &Connection, task_id: i64) -> i64 {

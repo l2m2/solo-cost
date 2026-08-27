@@ -87,9 +87,12 @@ pub(crate) fn create_note_impl(
             id: task_id,
         });
     }
+    // 'localtime': occurred_at is compared against timestamps typed into the
+    // datetime-local picker (local wall-clock), so the fallback must be on the
+    // same clock or a same-minute pause/note pair sorts hours apart.
     conn.execute(
         "INSERT INTO task_events(task_id, kind, body, occurred_at)
-         VALUES(?1, 'note', ?2, COALESCE(?3, datetime('now')))",
+         VALUES(?1, 'note', ?2, COALESCE(?3, datetime('now','localtime')))",
         rusqlite::params![task_id, body, occurred_at],
     )?;
     get_impl(conn, conn.last_insert_rowid())

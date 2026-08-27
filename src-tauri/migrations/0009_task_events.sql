@@ -77,8 +77,14 @@ FROM tasks WHERE deleted_at IS NULL AND completed_at IS NOT NULL;
 
 -- Catch-all: a task whose current status produced no event above (e.g. imported
 -- as 'done' with no completed_at) would show a timeline contradicting its badge.
+-- occurred_at uses MAX(created_at, started_at) rather than created_at alone:
+-- a task can be 'done' with started_at set but completed_at NULL (zentao import
+-- with a blank finish date), and created_at alone would place this catch-all
+-- event before the in_progress event seeded above it, showing the task as
+-- finished before it started.
 INSERT INTO task_events (task_id, kind, from_status, to_status, occurred_at, created_at)
-SELECT t.id, 'status_change', NULL, t.status, t.created_at, t.created_at
+SELECT t.id, 'status_change', NULL, t.status,
+       MAX(t.created_at, COALESCE(t.started_at, t.created_at)), t.created_at
 FROM tasks t
 WHERE t.deleted_at IS NULL
   AND NOT EXISTS (
