@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ChevronLeft, Play, Pause, PlayCircle, CheckCircle, Archive, Trash2, Plus } from "lucide-react";
+import { ChevronLeft, Play, Pause, PlayCircle, CheckCircle, Archive, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FormDialogContent } from "@/components/ui/form-dialog";
 import { call } from "@/lib/ipc";
@@ -20,7 +20,9 @@ import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS, type TransitionMode }
 import { Timeline } from "@/components/tasks/Timeline";
 import { NoteComposer } from "@/components/tasks/NoteComposer";
 import TimeLogForm from "@/components/tasks/TimeLogForm";
-import { TaskForm, TimeLogEditForm } from "@/routes/projects/tasks/panel";
+import { TaskInfoCard } from "@/components/tasks/TaskInfoCard";
+import { TaskDescriptionCard } from "@/components/tasks/TaskDescriptionCard";
+import { TimeLogEditForm } from "@/routes/projects/tasks/panel";
 import type { Project, StatusChange, Task, TaskEvent, TaskInput, TimeLog } from "@/types";
 
 export default function TaskDetailPage() {
@@ -94,6 +96,29 @@ export default function TaskDetailPage() {
 
   const backToList = () => navigate(`/projects/${pid}?task=${tid}`);
 
+  // update_task rewrites every field it is given, so a description-only edit
+  // still has to resend the rest of the task as it currently stands.
+  const saveDescription = async (description: string | null): Promise<boolean> => {
+    try {
+      await update(tid, {
+        title: task.title,
+        description,
+        assignee_id: task.assignee_id,
+        estimated_hours: task.estimated_hours,
+        due_date: task.due_date,
+        started_at: task.started_at,
+        completed_at: task.completed_at,
+        module_id: task.module_id,
+      }, pid);
+      await reloadTask();
+      toast.success(t("task.saved"));
+      return true;
+    } catch (e: unknown) {
+      toast.error(t("common.error", { msg: String(e) }));
+      return false;
+    }
+  };
+
   const runTransition = async (input: TaskInput & { hours?: number }, change: StatusChange) => {
     try {
       if (mode === "pause" || mode === "resume") {
@@ -122,6 +147,7 @@ export default function TaskDetailPage() {
     <div className="space-y-4">
       <button
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        title={t("task.backToList")}
         onClick={backToList}
       >
         <ChevronLeft className="h-4 w-4" />
@@ -191,60 +217,68 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      <Card>
-        <CardContent className="p-4">
-          <TaskForm
-            // TaskForm seeds its started_at/completed_at state from `initial`
-            // only on mount. A status transition rewrites those columns and
-            // bumps updated_at server-side; keying on both forces a remount
-            // so the form picks up the fresh values instead of resubmitting
-            // stale ones on the next save.
-            key={`${task.id}-${task.updated_at}`}
+      {/* Activity leads and takes the wider column: reading the timeline and
+          appending notes is what this page is for. Task fields sit alongside
+          as reference, not as a form demanding attention. */}
+      <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+        <div className="space-y-4 lg:col-span-2">
+          <TaskDescriptionCard description={task.description} onSave={saveDescription} />
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm">{t("timeline.title")}</CardTitle>
+              <Button size="sm" variant="outline" className="h-7" onClick={() => setOpenNewLog(true)}>
+                {t("timelog.add")}
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <NoteComposer onSubmit={(body) => createNote(tid, body)} />
+              <Timeline
+                events={events}
+                logs={logs}
+                members={members}
+                onEditNote={setEditingNote}
+                onDeleteNote={async (e) => {
+                  if (!(await confirmDialog(t("timeline.noteDeleteConfirm"), {
+                    title: t("common.delete"), kind: "warning",
+                    okLabel: t("common.delete"), cancelLabel: t("common.cancel"),
+                  }))) return;
+                  try { await deleteNote(e.id, tid); }
+                  catch (err: unknown) { toast.error(t("common.error", { msg: String(err) })); }
+                }}
+                onEditLog={setEditingLog}
+                onDeleteLog={async (l) => {
+                  if (!(await confirmDialog(t("timelog.deleteConfirm"), {
+                    title: t("common.delete"), kind: "warning",
+                    okLabel: t("common.delete"), cancelLabel: t("common.cancel"),
+                  }))) return;
+                  try { await deleteLog(l.id, tid, pid); await reloadTask(); }
+                  catch (err: unknown) { toast.error(t("common.error", { msg: String(err) })); }
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <TaskInfoCard
+            task={task}
             members={members}
             modules={modules}
-            initial={task}
-            onCancel={backToList}
-            onSubmit={async (input) => {
-              try { await update(tid, input, pid); await reloadTask(); toast.success(t("task.save")); }
-              catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+            onSave={async (input) => {
+              try {
+                await update(tid, input, pid);
+                await reloadTask();
+                toast.success(t("task.saved"));
+                return true;
+              } catch (e: unknown) {
+                toast.error(t("common.error", { msg: String(e) }));
+                return false;
+              }
             }}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4 space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="flex-1"><NoteComposer onSubmit={(body) => createNote(tid, body)} /></div>
-            <Button size="sm" variant="outline" onClick={() => setOpenNewLog(true)}>
-              <Plus className="h-4 w-4 mr-1" />{t("timelog.add")}
-            </Button>
-          </div>
-          <Timeline
-            events={events}
-            logs={logs}
-            members={members}
-            onEditNote={setEditingNote}
-            onDeleteNote={async (e) => {
-              if (!(await confirmDialog(t("timeline.noteDeleteConfirm"), {
-                title: t("common.delete"), kind: "warning",
-                okLabel: t("common.delete"), cancelLabel: t("common.cancel"),
-              }))) return;
-              try { await deleteNote(e.id, tid); }
-              catch (err: unknown) { toast.error(t("common.error", { msg: String(err) })); }
-            }}
-            onEditLog={setEditingLog}
-            onDeleteLog={async (l) => {
-              if (!(await confirmDialog(t("timelog.deleteConfirm"), {
-                title: t("common.delete"), kind: "warning",
-                okLabel: t("common.delete"), cancelLabel: t("common.cancel"),
-              }))) return;
-              try { await deleteLog(l.id, tid, pid); await reloadTask(); }
-              catch (err: unknown) { toast.error(t("common.error", { msg: String(err) })); }
-            }}
-          />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={mode !== null} onOpenChange={(o) => !o && setMode(null)}>
         <FormDialogContent>

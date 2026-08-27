@@ -267,8 +267,13 @@
     "resumeNote": "备注（选填）",
     "pausedFor": "已暂停 {{days}} 天",
     "backToList": "返回任务列表",
-    "detailTitle": "任务详情",
-    "basicInfo": "基本信息"
+    "basicInfo": "任务信息",
+    "saved": "已保存",
+    "actualHours": "实际工时",
+    "noEstimate": "未填预估工时",
+    "overBy": "超出 {{hours}}h",
+    "underBy": "剩余 {{hours}}h",
+    "noDescription": "还没有描述，点这里添加"
   },
   "taskStatus": {
     "todo": "待办",
