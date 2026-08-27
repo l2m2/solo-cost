@@ -52,7 +52,11 @@ export function StatusTransitionDialog({
   const [startedAt, setStartedAt] = useState(
     task.started_at ? task.started_at.replace(" ", "T").slice(0, 16) : ""
   );
-  const [description, setDescription] = useState(task.description ?? "");
+  // Not editable here — description has its own card on the detail page. It
+  // still has to be resent because update_task overwrites every field it is
+  // given, and omitting it would clear the description as a side effect of
+  // starting or completing the task.
+  const description = task.description?.trim() || null;
   const [note, setNote] = useState("");
   const [hours, setHours] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -86,7 +90,7 @@ export function StatusTransitionDialog({
       const storedStartedAt = showHours && startedAt ? startedAt.replace("T", " ") : null;
       const input: TaskInput & { hours?: number } = {
         title: task.title,
-        description: description.trim() || null,
+        description,
         assignee_id: task.assignee_id,
         estimated_hours: task.estimated_hours,
         due_date: task.due_date,
@@ -162,12 +166,6 @@ export function StatusTransitionDialog({
         <div className="space-y-1">
           <Label>{t("task.resumeNote")}</Label>
           <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-        </div>
-      )}
-      {mode !== "pause" && mode !== "resume" && (
-        <div className="space-y-1">
-          <Label>{t("task.description")}</Label>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
         </div>
       )}
       <DialogFooter>
