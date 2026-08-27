@@ -490,12 +490,22 @@ export function fromDatetimeLocal(v: string): string | null {
   return v.replace("T", " ");
 }
 
-export function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
+export function TaskForm({
+  members, modules, initial, onSubmit, onCancel,
+  layout = "wide", showDescription = true,
+}: {
   members: Member[];
   modules: Module[];
   initial?: Task;
   onSubmit: (input: TaskInput) => Promise<void>;
   onCancel: () => void;
+  // The detail page renders this in a narrow sidebar where paired fields would
+  // squeeze a datetime input below its usable width. Tailwind 3 has no
+  // container queries here, so the caller states which shape it can afford.
+  layout?: "wide" | "narrow";
+  // The detail page edits description on its own card. The create dialog has
+  // no such card, so it keeps the field.
+  showDescription?: boolean;
 }) {
   const { t } = useTranslation();
   const { markDirty } = useFormDialog();
@@ -515,6 +525,7 @@ export function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
     initial?.module_id ? String(initial.module_id) : "__none"
   );
   const [busy, setBusy] = useState(false);
+  const pairClass = layout === "narrow" ? "grid gap-3" : "grid grid-cols-2 gap-3";
 
   const currentAssignee = initial?.assignee_id
     ? members.find((m) => m.id === initial.assignee_id)
@@ -552,7 +563,7 @@ export function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
         <Label>{t("task.name")}</Label>
         <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={pairClass}>
         <div className="space-y-1">
           <Label>{t("task.assignee")}</Label>
           <Select value={assigneeId} onValueChange={(v) => { markDirty(); setAssigneeId(v); }}>
@@ -568,11 +579,19 @@ export function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
           </Select>
         </div>
         <div className="space-y-1">
-          <Label>{t("task.status")}</Label>
-          <Input value={t(`taskStatus.${status}`)} disabled />
+          <Label>{t("task.module")}</Label>
+          <Select value={moduleId} onValueChange={(v) => { markDirty(); setModuleId(v); }}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">{t("module.unassigned")}</SelectItem>
+              {modules.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={pairClass}>
         <div className="space-y-1">
           <Label>{t("task.estimatedHours")}</Label>
           <Input type="number" min="0" step="0.5" value={estHours} onChange={(e) => setEstHours(e.target.value)} />
@@ -582,7 +601,7 @@ export function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
           <Input type="date" value={dueDate ?? ""} onChange={(e) => setDueDate(e.target.value)} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={pairClass}>
         <div className="space-y-1">
           <Label>{t("task.startedAt")}</Label>
           <Input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} />
@@ -592,22 +611,12 @@ export function TaskForm({ members, modules, initial, onSubmit, onCancel }: {
           <Input type="datetime-local" value={completedAt} onChange={(e) => setCompletedAt(e.target.value)} />
         </div>
       </div>
-      <div className="space-y-1">
-        <Label>{t("task.module")}</Label>
-        <Select value={moduleId} onValueChange={(v) => { markDirty(); setModuleId(v); }}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none">{t("module.unassigned")}</SelectItem>
-            {modules.map((m) => (
-              <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-1">
-        <Label>{t("task.description")}</Label>
-        <Textarea value={description ?? ""} onChange={(e) => setDescription(e.target.value)} />
-      </div>
+      {showDescription && (
+        <div className="space-y-1">
+          <Label>{t("task.description")}</Label>
+          <Textarea value={description ?? ""} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+      )}
       <DialogFooter>
         <Button variant="outline" onClick={onCancel} disabled={busy}>{t("common.cancel")}</Button>
         <Button onClick={submit} disabled={busy}>{t("task.save")}</Button>
