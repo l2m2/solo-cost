@@ -415,10 +415,12 @@ pub fn company_dashboard(
     out.top_clients = clients.into_iter().take(5).collect();
 
     // todo tasks: all non-closed tasks across the company (the dedicated "待办"
-    // tab filters and paginates them client-side). Unfinished (todo /
-    // in_progress) come before done, then soonest due first and undated last. A
-    // done task past its due date is not flagged overdue. todo_task_count equals
-    // the returned row count now that the list is uncapped.
+    // tab filters and paginates them client-side). Active tasks (todo /
+    // in_progress) come first, then paused, then done, each bucket ordered by
+    // soonest due first and undated last. A paused task is blocked on something
+    // external, so like done tasks it is never flagged overdue even past its due
+    // date. todo_task_count equals the returned row count now that the list is
+    // uncapped.
     out.todo_task_count = conn.query_row(
         "SELECT COUNT(*)
          FROM tasks t JOIN projects p ON p.id = t.project_id
@@ -437,12 +439,17 @@ pub fn company_dashboard(
          LEFT JOIN members m ON m.id = t.assignee_id
          WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND t.deleted_at IS NULL
            AND t.status != 'closed'
-         ORDER BY (t.status = 'done'), (t.due_date IS NULL), t.due_date ASC, t.id ASC",
+         ORDER BY (t.status = 'done'), (t.status = 'paused'),
+                  (t.due_date IS NULL), t.due_date ASC, t.id ASC",
     )?;
     let task_rows = tstmt.query_map([company_id], |r| {
         let status: String = r.get(5)?;
         let due_date: Option<String> = r.get(6)?;
-        let overdue = status != "done" && due_date.as_deref().is_some_and(|d| d < today);
+        // A paused task is blocked on something external; flagging it overdue
+        // blames the wrong party.
+        let overdue = status != "done"
+            && status != "paused"
+            && due_date.as_deref().is_some_and(|d| d < today);
         Ok(DashTaskRow {
             task_id: r.get(0)?,
             project_id: r.get(1)?,
@@ -749,5 +756,42 @@ mod tests {
         // full non-closed list; count and row count now match.
         assert_eq!(d.todo_task_count, 15);
         assert_eq!(d.todo_tasks.len(), 15);
+    }
+
+    #[test]
+    fn paused_task_past_due_is_not_overdue() {
+        let dir = tempdir().unwrap();
+        let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks(project_id, title, status, due_date)
+             VALUES(1, '被卡住的任务', 'paused', '2020-01-01')",
+            [],
+        )
+        .unwrap();
+        let d = company_dashboard(&conn, 1, "2026-07-04").unwrap();
+        let row = d.todo_tasks.iter().find(|r| r.title == "被卡住的任务").unwrap();
+        assert!(!row.overdue, "暂停的任务在等外部依赖，不该算逾期");
+    }
+
+    #[test]
+    fn paused_tasks_sort_after_active_and_before_done() {
+        let dir = tempdir().unwrap();
+        let conn = setup_at(&dir.path().join("test.db"), "p").unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+            .unwrap();
+        for (title, status) in [("A活跃", "in_progress"), ("B暂停", "paused"), ("C完成", "done")] {
+            conn.execute(
+                "INSERT INTO tasks(project_id, title, status) VALUES(1, ?1, ?2)",
+                rusqlite::params![title, status],
+            )
+            .unwrap();
+        }
+        let d = company_dashboard(&conn, 1, "2026-07-04").unwrap();
+        let titles: Vec<&str> = d.todo_tasks.iter().map(|r| r.title.as_str()).collect();
+        assert_eq!(titles, vec!["A活跃", "B暂停", "C完成"]);
     }
 }
