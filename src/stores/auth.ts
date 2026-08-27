@@ -11,6 +11,7 @@ import { useClientsStore } from "./clients";
 import { usePaymentsStore } from "./payments";
 import { useTasksStore } from "./tasks";
 import { useTimelogsStore } from "./timelogs";
+import { useTaskEventsStore } from "./taskEvents";
 import { useBackupStore } from "./backup";
 import { useDashboardStore } from "./dashboard";
 
@@ -64,6 +65,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     usePaymentsStore.getState().reset();
     useTasksStore.getState().reset();
     useTimelogsStore.getState().reset();
+    useTaskEventsStore.getState().reset();
     useBackupStore.getState().reset();
     useDashboardStore.getState().reset();
     set({ status: "locked" });

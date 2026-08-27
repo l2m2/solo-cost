@@ -308,7 +308,7 @@ export default function DashboardPage() {
   // drops out of the list.
   const closeTask = async (row: DashTaskRow) => {
     try {
-      await setTaskStatus(row.task_id, "closed", row.project_id);
+      await setTaskStatus(row.task_id, { to: "closed" }, row.project_id);
       if (currentId != null) await loadFor(currentId);
     } catch (e: unknown) {
       toast.error(t("common.error", { msg: String(e) }));

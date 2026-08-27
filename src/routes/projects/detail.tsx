@@ -982,7 +982,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                             className="h-7 px-2"
                             title="关闭任务"
                             onClick={async () => {
-                              try { await setStatus(tk.id, "closed", projectId); }
+                              try { await setStatus(tk.id, { to: "closed" }, projectId); }
                               catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
                             }}
                           ><Archive className="h-4 w-4" /></Button>
@@ -1039,7 +1039,7 @@ function TasksPanel({ projectId, companyId }: { projectId: number; companyId: nu
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onClose={async () => {
-                try { await setStatus(editing.id, "closed", projectId); setEditing(null); }
+                try { await setStatus(editing.id, { to: "closed" }, projectId); setEditing(null); }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onDelete={async () => {
