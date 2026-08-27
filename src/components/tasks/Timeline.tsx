@@ -5,8 +5,20 @@ import { Button } from "@/components/ui/button";
 import type { Member, TaskEvent, TimeLog } from "@/types";
 
 type Item =
-  | { at: string; sort: string; kind: "event"; event: TaskEvent }
-  | { at: string; sort: string; kind: "log"; log: TimeLog };
+  | { at: string; sortAt: string; sortId: number; kind: "event"; event: TaskEvent }
+  | { at: string; sortAt: string; sortId: number; kind: "log"; log: TimeLog };
+
+// Timestamps arrive at two precisions: SQLite's COALESCE(?, datetime('now'))
+// produces "YYYY-MM-DD HH:MM:SS", while the status-transition dialog sends
+// "YYYY-MM-DD HH:MM" (no seconds) for a user-picked time. Comparing those
+// two forms as strings is unsound ("...09:05" is a string-prefix of, and
+// thus sorts as older than, any "...09:05:SS"). Normalize to second
+// precision before comparing. A minute-precision value is read as the START
+// of that minute — i.e. ":00" — since that's the only rule the data gives us
+// grounds to encode; do not read anything more into it.
+function toSecondPrecision(timestamp: string): string {
+  return timestamp.length === 16 ? `${timestamp}:00` : timestamp;
+}
 
 // time_logs stays its own table — it carries a cost snapshot and has its own
 // mutation paths — so the two sources merge here at render time rather than
@@ -15,7 +27,8 @@ function merge(events: TaskEvent[], logs: TimeLog[]): Item[] {
   const items: Item[] = [
     ...events.map((event) => ({
       at: event.occurred_at,
-      sort: `${event.occurred_at}#${event.id}`,
+      sortAt: toSecondPrecision(event.occurred_at),
+      sortId: event.id,
       kind: "event" as const,
       event,
     })),
@@ -23,12 +36,22 @@ function merge(events: TaskEvent[], logs: TimeLog[]): Item[] {
       at: log.work_date,
       // A work_date has no time component; pin it to end of day so a log lands
       // after the same day's status changes rather than before them.
-      sort: `${log.work_date} 23:59:59#${log.id}`,
+      sortAt: `${log.work_date} 23:59:59`,
+      sortId: log.id,
       kind: "log" as const,
       log,
     })),
   ];
-  return items.sort((a, b) => (a.sort < b.sort ? 1 : a.sort > b.sort ? -1 : 0));
+  // Newest first: compare normalized timestamps, then break ties by id.
+  // Two rows can share an identical timestamp (e.g. a task created already
+  // "in_progress" writes created_at == started_at; two same-day time_logs
+  // share the same end-of-day pin) — id order is the only remaining signal
+  // for which one came later, and it must be compared numerically, not as
+  // a string ('3' > '1' would otherwise put id 3 ahead of id 10).
+  return items.sort((a, b) => {
+    if (a.sortAt !== b.sortAt) return a.sortAt < b.sortAt ? 1 : -1;
+    return b.sortId - a.sortId;
+  });
 }
 
 export function Timeline({
