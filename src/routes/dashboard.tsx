@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FormDialogContent } from "@/components/ui/form-dialog";
-import { RefreshCw, Play, CheckCircle, Archive } from "lucide-react";
+import { RefreshCw, Play, Pause, PlayCircle, CheckCircle, Archive } from "lucide-react";
 import { StatusTransitionDialog } from "@/components/tasks/StatusTransitionDialog";
 import { LedgerOverview } from "@/components/dashboard/LedgerOverview";
 import { LedgerPanel, LedgerBar } from "@/components/dashboard/ledgerParts";
@@ -27,7 +27,7 @@ import { PAPER, INK, INK_SOFT, VERMILION, INDIGO, RULE, SERIF } from "@/componen
 import { call } from "@/lib/ipc";
 import { formatCNY } from "@/lib/money";
 import { statusLabel } from "@/lib/status";
-import type { RankRow, DashYearRow, DashTaskRow, Task, TaskInput } from "@/types";
+import type { RankRow, DashYearRow, DashTaskRow, Task } from "@/types";
 
 // The year detail lists one row per receipt, but commission and net are only
 // computed at project-year granularity. Split each project's whole-year
@@ -121,6 +121,7 @@ function RankCard({ title, rows, t }: { title: string; rows: RankRow[]; t: TFunc
 const LEDGER_STATUS_DOT: Record<string, string> = {
   todo: "#B0A794",
   in_progress: INDIGO,
+  paused: VERMILION,
   done: INK_SOFT,
 };
 
@@ -129,12 +130,14 @@ const TODO_PAGE_SIZE = 12;
 // Todo list styled as a page of the account book, to match LedgerOverview.
 // Filtering and pagination run client-side over the full non-closed task list.
 function TodoTasksCard({
-  rows, t, onOpen, onStart, onComplete, onClose,
+  rows, t, onOpen, onStart, onPause, onResume, onComplete, onClose,
 }: {
   rows: DashTaskRow[];
   t: TFunction;
   onOpen: (projectId: number) => void;
   onStart: (row: DashTaskRow) => void;
+  onPause: (row: DashTaskRow) => void;
+  onResume: (row: DashTaskRow) => void;
   onComplete: (row: DashTaskRow) => void;
   onClose: (row: DashTaskRow) => void;
 }) {
@@ -179,6 +182,7 @@ function TodoTasksCard({
               <SelectItem value="__active">{t("task.activeStatuses")}</SelectItem>
               <SelectItem value="todo">{t("taskStatus.todo")}</SelectItem>
               <SelectItem value="in_progress">{t("taskStatus.in_progress")}</SelectItem>
+              <SelectItem value="paused">{t("taskStatus.paused")}</SelectItem>
               <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
             </SelectContent>
           </Select>
@@ -246,6 +250,16 @@ function TodoTasksCard({
                     <Play className="h-4 w-4" />
                   </Button>
                 )}
+                {r.status === "in_progress" && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.pause")} style={{ color: INK_SOFT }} onClick={() => onPause(r)}>
+                    <Pause className="h-4 w-4" />
+                  </Button>
+                )}
+                {r.status === "paused" && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.resume")} style={{ color: INK_SOFT }} onClick={() => onResume(r)}>
+                    <PlayCircle className="h-4 w-4" />
+                  </Button>
+                )}
                 {r.status !== "done" && (
                   <Button size="sm" variant="ghost" className="h-7 px-2" title="完成" style={{ color: INK_SOFT }} onClick={() => onComplete(r)}>
                     <CheckCircle className="h-4 w-4" />
@@ -289,16 +303,23 @@ export default function DashboardPage() {
   );
   const [startingTask, setStartingTask] = useState<Task | null>(null);
   const [completingTask, setCompletingTask] = useState<Task | null>(null);
+  const [pausingTask, setPausingTask] = useState<Task | null>(null);
+  const [resumingTask, setResumingTask] = useState<Task | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Start/complete act directly from the dashboard: fetch the full task (the
-  // dialog needs every field to build its update payload), then open the shared
-  // transition dialog. On success the whole dashboard reloads.
-  const openTaskAction = async (row: DashTaskRow, kind: "start" | "complete") => {
+  // Start/complete/pause/resume act directly from the dashboard: fetch the
+  // full task (the dialog needs every field to build its update payload), then
+  // open the shared transition dialog. On success the whole dashboard reloads.
+  const openTaskAction = async (
+    row: DashTaskRow,
+    kind: "start" | "complete" | "pause" | "resume",
+  ) => {
     try {
       const task = await call<Task>("get_task", { id: row.task_id });
       if (kind === "start") setStartingTask(task);
-      else setCompletingTask(task);
+      else if (kind === "complete") setCompletingTask(task);
+      else if (kind === "pause") setPausingTask(task);
+      else setResumingTask(task);
     } catch (e: unknown) {
       toast.error(t("common.error", { msg: String(e) }));
     }
@@ -367,6 +388,8 @@ export default function DashboardPage() {
             t={t}
             onOpen={(projectId) => navigate(`/projects/${projectId}`)}
             onStart={(row) => openTaskAction(row, "start")}
+            onPause={(row) => openTaskAction(row, "pause")}
+            onResume={(row) => openTaskAction(row, "resume")}
             onComplete={(row) => openTaskAction(row, "complete")}
             onClose={closeTask}
           />
@@ -506,16 +529,55 @@ export default function DashboardPage() {
           {startingTask && (
             <StatusTransitionDialog
               task={startingTask}
-              label="开始时间"
-              fieldKey="started_at"
-              onSubmit={async (input) => {
+              mode="start"
+              onSubmit={async (input, change) => {
                 try {
-                  await updateTask(startingTask.id, { ...input, status: "in_progress" } as TaskInput, startingTask.project_id);
+                  await updateTask(startingTask.id, input, startingTask.project_id, change);
                   setStartingTask(null);
                   if (currentId != null) await loadFor(currentId);
                 } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onCancel={() => setStartingTask(null)}
+            />
+          )}
+        </FormDialogContent>
+      </Dialog>
+
+      <Dialog open={!!pausingTask} onOpenChange={(o) => !o && setPausingTask(null)}>
+        <FormDialogContent>
+          <DialogHeader><DialogTitle>{t("task.pauseTitle")}</DialogTitle></DialogHeader>
+          {pausingTask && (
+            <StatusTransitionDialog
+              task={pausingTask}
+              mode="pause"
+              onSubmit={async (_input, change) => {
+                try {
+                  await setTaskStatus(pausingTask.id, change, pausingTask.project_id);
+                  setPausingTask(null);
+                  if (currentId != null) await loadFor(currentId);
+                } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setPausingTask(null)}
+            />
+          )}
+        </FormDialogContent>
+      </Dialog>
+
+      <Dialog open={!!resumingTask} onOpenChange={(o) => !o && setResumingTask(null)}>
+        <FormDialogContent>
+          <DialogHeader><DialogTitle>{t("task.resumeTitle")}</DialogTitle></DialogHeader>
+          {resumingTask && (
+            <StatusTransitionDialog
+              task={resumingTask}
+              mode="resume"
+              onSubmit={async (_input, change) => {
+                try {
+                  await setTaskStatus(resumingTask.id, change, resumingTask.project_id);
+                  setResumingTask(null);
+                  if (currentId != null) await loadFor(currentId);
+                } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setResumingTask(null)}
             />
           )}
         </FormDialogContent>
@@ -527,13 +589,12 @@ export default function DashboardPage() {
           {completingTask && (
             <StatusTransitionDialog
               task={completingTask}
-              label="完成时间"
-              fieldKey="completed_at"
+              mode="complete"
               existingHours={completingTask.actual_hours}
-              onSubmit={async (input) => {
+              onSubmit={async (input, change) => {
                 try {
-                  await updateTask(completingTask.id, { ...input, status: "done" } as TaskInput, completingTask.project_id);
-                  const h = (input as Record<string, unknown>).hours;
+                  await updateTask(completingTask.id, input, completingTask.project_id, change);
+                  const h = input.hours;
                   if (typeof h === "number" && h > 0 && completingTask.assignee_id != null) {
                     await createTimelog({
                       task_id: completingTask.id,

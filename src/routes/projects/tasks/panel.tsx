@@ -24,7 +24,7 @@ import { useMembersStore } from "@/stores/members";
 import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
 import { Badge } from "@/components/ui/badge";
-import { Play, CheckCircle, Archive, Clock, ChevronRight, ChevronDown } from "lucide-react";
+import { Play, Pause, PlayCircle, CheckCircle, Archive, Clock, ChevronRight, ChevronDown } from "lucide-react";
 import { FormDialogContent, useFormDialog } from "@/components/ui/form-dialog";
 import ZentaoImportDialog from "@/components/zentao-import/ZentaoImportDialog";
 import { StatusTransitionDialog, TASK_STATUS_BADGE_CLASS } from "@/components/tasks/StatusTransitionDialog";
@@ -77,6 +77,8 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
   const [openLogs, setOpenLogs] = useState<Task | null>(null);
   const [startingTask, setStartingTask] = useState<Task | null>(null);
   const [completingTask, setCompletingTask] = useState<Task | null>(null);
+  const [pausingTask, setPausingTask] = useState<Task | null>(null);
+  const [resumingTask, setResumingTask] = useState<Task | null>(null);
   const PAGE_SIZE = 20;
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(visibleTasks.length / PAGE_SIZE));
@@ -153,6 +155,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
               <SelectItem value="__active">{t("task.activeStatuses")}</SelectItem>
               <SelectItem value="todo">{t("taskStatus.todo")}</SelectItem>
               <SelectItem value="in_progress">{t("taskStatus.in_progress")}</SelectItem>
+              <SelectItem value="paused">{t("taskStatus.paused")}</SelectItem>
               <SelectItem value="done">{t("taskStatus.done")}</SelectItem>
               <SelectItem value="closed">{t("taskStatus.closed")}</SelectItem>
               <SelectItem value="__all">{t("task.allStatuses")}</SelectItem>
@@ -291,6 +294,24 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
                             onClick={() => setStartingTask(tk)}
                           ><Play className="h-4 w-4" /></Button>
                         )}
+                        {tk.status === "in_progress" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            title={t("task.pause")}
+                            onClick={() => setPausingTask(tk)}
+                          ><Pause className="h-4 w-4" /></Button>
+                        )}
+                        {tk.status === "paused" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            title={t("task.resume")}
+                            onClick={() => setResumingTask(tk)}
+                          ><PlayCircle className="h-4 w-4" /></Button>
+                        )}
                         {tk.status !== "done" && tk.status !== "closed" && (
                           <Button
                             size="sm"
@@ -425,13 +446,46 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
           {startingTask && (
             <StatusTransitionDialog
               task={startingTask}
-              label="开始时间"
-              fieldKey="started_at"
-              onSubmit={async (input) => {
-                try { await update(startingTask.id, { ...input, status: "in_progress" } as TaskInput, projectId); setStartingTask(null); }
+              mode="start"
+              onSubmit={async (input, change) => {
+                try { await update(startingTask.id, input, projectId, change); setStartingTask(null); }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
               onCancel={() => setStartingTask(null)}
+            />
+          )}
+        </FormDialogContent>
+      </Dialog>
+
+      <Dialog open={!!pausingTask} onOpenChange={(o) => !o && setPausingTask(null)}>
+        <FormDialogContent>
+          <DialogHeader><DialogTitle>{t("task.pauseTitle")}</DialogTitle></DialogHeader>
+          {pausingTask && (
+            <StatusTransitionDialog
+              task={pausingTask}
+              mode="pause"
+              onSubmit={async (_input, change) => {
+                try { await setStatus(pausingTask.id, change, projectId); setPausingTask(null); }
+                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setPausingTask(null)}
+            />
+          )}
+        </FormDialogContent>
+      </Dialog>
+
+      <Dialog open={!!resumingTask} onOpenChange={(o) => !o && setResumingTask(null)}>
+        <FormDialogContent>
+          <DialogHeader><DialogTitle>{t("task.resumeTitle")}</DialogTitle></DialogHeader>
+          {resumingTask && (
+            <StatusTransitionDialog
+              task={resumingTask}
+              mode="resume"
+              onSubmit={async (_input, change) => {
+                try { await setStatus(resumingTask.id, change, projectId); setResumingTask(null); }
+                catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
+              }}
+              onCancel={() => setResumingTask(null)}
             />
           )}
         </FormDialogContent>
@@ -443,13 +497,12 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
           {completingTask && (
             <StatusTransitionDialog
               task={completingTask}
-              label="完成时间"
-              fieldKey="completed_at"
+              mode="complete"
               existingHours={(tasks.find((t) => t.id === completingTask.id))?.actual_hours ?? 0}
-              onSubmit={async (input) => {
+              onSubmit={async (input, change) => {
                 try {
-                  await update(completingTask.id, { ...input, status: "done" } as TaskInput, projectId);
-                  const h = (input as Record<string, unknown>).hours;
+                  await update(completingTask.id, input, projectId, change);
+                  const h = input.hours;
                   if (typeof h === "number" && h > 0 && completingTask.assignee_id != null) {
                     await createTimelog({
                       task_id: completingTask.id,
