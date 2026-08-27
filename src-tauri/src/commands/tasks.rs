@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
-const ALLOWED_STATUSES: [&str; 4] = ["todo", "in_progress", "done", "closed"];
+const ALLOWED_STATUSES: [&str; 5] = ["todo", "in_progress", "paused", "done", "closed"];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Task {
@@ -80,6 +80,135 @@ fn validate(input: &TaskInput) -> AppResult<()> {
             return Err(AppError::Validation("预估工时需在 [0, 9999] 之间".into()));
         }
     }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StatusChange {
+    pub to: String,
+    #[serde(default)]
+    pub occurred_at: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
+}
+
+fn status_label(s: &str) -> &str {
+    match s {
+        "todo" => "待办",
+        "in_progress" => "进行中",
+        "paused" => "已暂停",
+        "done" => "已完成",
+        "closed" => "已关闭",
+        other => other,
+    }
+}
+
+fn transition_allowed(from: &str, to: &str) -> bool {
+    matches!(
+        (from, to),
+        ("todo", "in_progress")
+            | ("todo", "closed")
+            | ("in_progress", "paused")
+            | ("in_progress", "done")
+            | ("in_progress", "closed")
+            | ("paused", "in_progress")
+            | ("paused", "done")
+            | ("paused", "closed")
+            | ("done", "closed")
+    )
+}
+
+/// Trims the body and rejects blanks / oversized text. Shared by transitions
+/// and by the note commands so both enforce the same limit.
+pub(crate) fn normalized_body(body: Option<&str>) -> AppResult<Option<String>> {
+    let Some(b) = body.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    if b.chars().count() > 2000 {
+        return Err(AppError::Validation("内容长度不能超过 2000 字".into()));
+    }
+    Ok(Some(b.to_string()))
+}
+
+/// Moves a task to a new status and records it on the timeline. Returns false
+/// when the task already sits in the target status (no-op, no event written).
+/// Every status change goes through here — a second write path that skipped the
+/// event is exactly what makes a timeline untrustworthy.
+fn apply_transition(conn: &Connection, id: i64, change: &StatusChange) -> AppResult<bool> {
+    if !ALLOWED_STATUSES.contains(&change.to.as_str()) {
+        return Err(AppError::Validation(format!("非法状态：{}", change.to)));
+    }
+    let from: String = conn
+        .query_row(
+            "SELECT status FROM tasks WHERE id = ?1 AND deleted_at IS NULL",
+            [id],
+            |r| r.get(0),
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "task", id },
+            other => AppError::Db(other),
+        })?;
+    if from == change.to {
+        return Ok(false);
+    }
+    if !transition_allowed(&from, &change.to) {
+        return Err(AppError::Validation(format!(
+            "任务不能从「{}」变为「{}」",
+            status_label(&from),
+            status_label(&change.to)
+        )));
+    }
+    let body = normalized_body(change.body.as_deref())?;
+    if change.to == "paused" && body.is_none() {
+        return Err(AppError::Validation("暂停任务必须填写原因".into()));
+    }
+    conn.execute(
+        "UPDATE tasks SET status = ?1, updated_at = datetime('now')
+         WHERE id = ?2 AND deleted_at IS NULL",
+        rusqlite::params![change.to, id],
+    )?;
+    conn.execute(
+        "INSERT INTO task_events(task_id, kind, from_status, to_status, body, occurred_at)
+         VALUES(?1, 'status_change', ?2, ?3, ?4, COALESCE(?5, datetime('now')))",
+        rusqlite::params![id, from, change.to, body, change.occurred_at.as_deref()],
+    )?;
+    Ok(true)
+}
+
+/// Seeds the timeline for a freshly created task. Mirrors the 0009 backfill so
+/// imported tasks (which arrive with source dates already set) get the same
+/// history as tasks that predate the events table.
+fn seed_creation_events(conn: &Connection, id: i64) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO task_events(task_id, kind, from_status, to_status, occurred_at)
+         SELECT id, 'status_change', NULL, 'todo', created_at FROM tasks WHERE id = ?1",
+        [id],
+    )?;
+    conn.execute(
+        "INSERT INTO task_events(task_id, kind, from_status, to_status, occurred_at)
+         SELECT id, 'status_change', 'todo', 'in_progress', started_at
+         FROM tasks WHERE id = ?1 AND started_at IS NOT NULL",
+        [id],
+    )?;
+    conn.execute(
+        "INSERT INTO task_events(task_id, kind, from_status, to_status, occurred_at)
+         SELECT id, 'status_change',
+                CASE WHEN started_at IS NOT NULL THEN 'in_progress' ELSE 'todo' END,
+                CASE WHEN status = 'closed' THEN 'closed' ELSE 'done' END,
+                completed_at
+         FROM tasks WHERE id = ?1 AND completed_at IS NOT NULL",
+        [id],
+    )?;
+    conn.execute(
+        "INSERT INTO task_events(task_id, kind, from_status, to_status, occurred_at)
+         SELECT t.id, 'status_change', NULL, t.status, t.created_at
+         FROM tasks t
+         WHERE t.id = ?1
+           AND NOT EXISTS (
+               SELECT 1 FROM task_events e WHERE e.task_id = t.id AND e.to_status = t.status
+           )",
+        [id],
+    )?;
     Ok(())
 }
 
@@ -195,10 +324,16 @@ pub(crate) fn create_impl(
         ],
     )?;
     let id = conn.last_insert_rowid();
+    seed_creation_events(conn, id)?;
     get_impl(conn, id)
 }
 
-pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppResult<Task> {
+pub(crate) fn update_impl(
+    conn: &Connection,
+    id: i64,
+    input: &TaskInput,
+    change: Option<&StatusChange>,
+) -> AppResult<Task> {
     validate(input)?;
     let project_id: i64 = conn
         .query_row(
@@ -225,24 +360,28 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppR
             ));
         }
     }
-    let n = conn.execute(
+    // Fields and the status change land in one transaction: the completion
+    // dialog submits a timestamp, a description and the new status together.
+    let tx = conn.unchecked_transaction()?;
+    // input.status is deliberately not applied here. It survives only for
+    // create_task / zentao import; routing every status change through
+    // apply_transition is what keeps the timeline complete.
+    let n = tx.execute(
         "UPDATE tasks SET
             title = ?1,
             description = ?2,
             assignee_id = ?3,
-            status = COALESCE(?4, status),
-            estimated_hours = ?5,
-            due_date = ?6,
-            started_at = ?7,
-            completed_at = ?8,
-            module_id = ?9,
+            estimated_hours = ?4,
+            due_date = ?5,
+            started_at = ?6,
+            completed_at = ?7,
+            module_id = ?8,
             updated_at = datetime('now')
-         WHERE id = ?10 AND deleted_at IS NULL",
+         WHERE id = ?9 AND deleted_at IS NULL",
         rusqlite::params![
             input.title.trim(),
             input.description.as_deref(),
             input.assignee_id,
-            input.status.as_deref(),
             input.estimated_hours,
             input.due_date.as_deref(),
             input.started_at.as_deref(),
@@ -254,21 +393,21 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &TaskInput) -> AppR
     if n == 0 {
         return Err(AppError::NotFound { entity: "task", id });
     }
+    if let Some(c) = change {
+        apply_transition(&tx, id, c)?;
+    }
+    tx.commit()?;
     get_impl(conn, id)
 }
 
-pub(crate) fn set_status_impl(conn: &Connection, id: i64, status: &str) -> AppResult<Task> {
-    if !ALLOWED_STATUSES.contains(&status) {
-        return Err(AppError::Validation(format!("非法状态：{status}")));
-    }
-    let n = conn.execute(
-        "UPDATE tasks SET status = ?1, updated_at = datetime('now')
-         WHERE id = ?2 AND deleted_at IS NULL",
-        rusqlite::params![status, id],
-    )?;
-    if n == 0 {
-        return Err(AppError::NotFound { entity: "task", id });
-    }
+pub(crate) fn set_status_impl(
+    conn: &Connection,
+    id: i64,
+    change: &StatusChange,
+) -> AppResult<Task> {
+    let tx = conn.unchecked_transaction()?;
+    apply_transition(&tx, id, change)?;
+    tx.commit()?;
     get_impl(conn, id)
 }
 
@@ -306,12 +445,21 @@ pub fn create_task(
     with_conn(&state, |c| create_impl(c, project_id, &input))
 }
 #[tauri::command]
-pub fn update_task(state: tauri::State<AppState>, id: i64, input: TaskInput) -> AppResult<Task> {
-    with_conn(&state, |c| update_impl(c, id, &input))
+pub fn update_task(
+    state: tauri::State<AppState>,
+    id: i64,
+    input: TaskInput,
+    change: Option<StatusChange>,
+) -> AppResult<Task> {
+    with_conn(&state, |c| update_impl(c, id, &input, change.as_ref()))
 }
 #[tauri::command]
-pub fn set_task_status(state: tauri::State<AppState>, id: i64, status: String) -> AppResult<Task> {
-    with_conn(&state, |c| set_status_impl(c, id, &status))
+pub fn set_task_status(
+    state: tauri::State<AppState>,
+    id: i64,
+    change: StatusChange,
+) -> AppResult<Task> {
+    with_conn(&state, |c| set_status_impl(c, id, &change))
 }
 #[tauri::command]
 pub fn delete_task(state: tauri::State<AppState>, id: i64) -> AppResult<()> {
@@ -384,12 +532,148 @@ mod tests {
         assert_eq!(list_impl(&db.conn, 1, Some("done")).unwrap().len(), 1);
     }
 
+    fn change(to: &str) -> StatusChange {
+        StatusChange { to: to.into(), occurred_at: None, body: None }
+    }
+
     #[test]
     fn set_status_changes_state() {
         let db = TestDb::new();
         let t = create_impl(&db.conn, 1, &input("T")).unwrap();
-        let u = set_status_impl(&db.conn, t.id, "in_progress").unwrap();
+        let u = set_status_impl(&db.conn, t.id, &change("in_progress")).unwrap();
         assert_eq!(u.status, "in_progress");
+    }
+
+    #[test]
+    fn illegal_transition_rejected() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        // todo -> done is not a legal edge; a task must be started first.
+        let err = set_status_impl(&db.conn, t.id, &change("done")).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn same_status_is_a_noop_without_event() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        let before = event_count(&db.conn, t.id);
+        set_status_impl(&db.conn, t.id, &change("todo")).unwrap();
+        assert_eq!(event_count(&db.conn, t.id), before);
+    }
+
+    #[test]
+    fn pause_without_body_rejected() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        set_status_impl(&db.conn, t.id, &change("in_progress")).unwrap();
+        let err = set_status_impl(&db.conn, t.id, &change("paused")).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn pause_with_body_writes_event() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        set_status_impl(&db.conn, t.id, &change("in_progress")).unwrap();
+        let c = StatusChange {
+            to: "paused".into(),
+            occurred_at: Some("2026-03-01 10:00:00".into()),
+            body: Some("等客户素材".into()),
+        };
+        let u = set_status_impl(&db.conn, t.id, &c).unwrap();
+        assert_eq!(u.status, "paused");
+        let (from, to, body, at): (String, String, String, String) = db
+            .conn
+            .query_row(
+                "SELECT from_status, to_status, body, occurred_at FROM task_events
+                 WHERE task_id = ?1 AND to_status = 'paused'",
+                [t.id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!((from.as_str(), to.as_str(), body.as_str(), at.as_str()),
+                   ("in_progress", "paused", "等客户素材", "2026-03-01 10:00:00"));
+    }
+
+    #[test]
+    fn resume_from_paused_allowed() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        set_status_impl(&db.conn, t.id, &change("in_progress")).unwrap();
+        let c = StatusChange {
+            to: "paused".into(),
+            occurred_at: None,
+            body: Some("等客户".into()),
+        };
+        set_status_impl(&db.conn, t.id, &c).unwrap();
+        let u = set_status_impl(&db.conn, t.id, &change("in_progress")).unwrap();
+        assert_eq!(u.status, "in_progress");
+    }
+
+    #[test]
+    fn update_ignores_status_in_input() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        let mut i = input("T");
+        i.status = Some("done".into());
+        let u = update_impl(&db.conn, t.id, &i, None).unwrap();
+        assert_eq!(u.status, "todo");
+    }
+
+    #[test]
+    fn update_with_change_applies_fields_and_status_together() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        let mut i = input("T");
+        i.description = Some("改过的描述".into());
+        i.started_at = Some("2026-03-01 09:00:00".into());
+        let c = StatusChange {
+            to: "in_progress".into(),
+            occurred_at: Some("2026-03-01 09:00:00".into()),
+            body: None,
+        };
+        let u = update_impl(&db.conn, t.id, &i, Some(&c)).unwrap();
+        assert_eq!(u.status, "in_progress");
+        assert_eq!(u.description.as_deref(), Some("改过的描述"));
+        assert_eq!(u.started_at.as_deref(), Some("2026-03-01 09:00:00"));
+    }
+
+    #[test]
+    fn create_seeds_timeline() {
+        let db = TestDb::new();
+        let t = create_impl(&db.conn, 1, &input("T")).unwrap();
+        let to: String = db
+            .conn
+            .query_row(
+                "SELECT to_status FROM task_events WHERE task_id = ?1",
+                [t.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(to, "todo");
+    }
+
+    #[test]
+    fn create_with_source_dates_seeds_full_timeline() {
+        // Mirrors a zentao import: the task arrives already finished.
+        let db = TestDb::new();
+        let mut i = input("T");
+        i.status = Some("done".into());
+        i.started_at = Some("2026-01-02 09:00:00".into());
+        i.completed_at = Some("2026-01-05 18:00:00".into());
+        i.created_at = Some("2026-01-01 08:00:00".into());
+        let t = create_impl(&db.conn, 1, &i).unwrap();
+        assert_eq!(event_count(&db.conn, t.id), 3);
+    }
+
+    fn event_count(conn: &Connection, task_id: i64) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM task_events WHERE task_id = ?1 AND deleted_at IS NULL",
+            [task_id],
+            |r| r.get(0),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -466,7 +750,7 @@ mod tests {
         let t = create_impl(&db.conn, 1, &i).unwrap();
         let mut u = input("T");
         u.module_id = None;
-        let updated = update_impl(&db.conn, t.id, &u).unwrap();
+        let updated = update_impl(&db.conn, t.id, &u, None).unwrap();
         assert_eq!(updated.module_id, None);
     }
 
