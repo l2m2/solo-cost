@@ -783,7 +783,10 @@ mod tests {
         conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
         conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
             .unwrap();
-        for (title, status) in [("A活跃", "in_progress"), ("B暂停", "paused"), ("C完成", "done")] {
+        // Paused is inserted with a lower id than active so a plain `id ASC`
+        // tiebreak (the pre-fix behavior) would sort it first — only the
+        // `(t.status = 'paused')` sort key forces active before paused here.
+        for (title, status) in [("B暂停", "paused"), ("A活跃", "in_progress"), ("C完成", "done")] {
             conn.execute(
                 "INSERT INTO tasks(project_id, title, status) VALUES(1, ?1, ?2)",
                 rusqlite::params![title, status],
