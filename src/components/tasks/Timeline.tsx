@@ -20,6 +20,17 @@ function toSecondPrecision(timestamp: string): string {
   return timestamp.length === 16 ? `${timestamp}:00` : timestamp;
 }
 
+// Stamps reach this column in three shapes: a time_log carries a work_date and
+// no clock time at all, apply_transition writes seconds, and the transition
+// dialog's picker writes minutes. Render one shape — date, plus time when the
+// source actually has one — so the column reads as a column. Seconds are
+// dropped rather than padded onto the rows that lack them: a timeline is read
+// at minute resolution, and inventing ":00" would assert precision the picker
+// never captured.
+function formatStamp(value: string): string {
+  return value.length > 16 ? value.slice(0, 16) : value;
+}
+
 // time_logs stays its own table — it carries a cost snapshot and has its own
 // mutation paths — so the two sources merge here at render time rather than
 // being double-written into task_events.
@@ -103,6 +114,17 @@ export function Timeline({
   );
 }
 
+// Fixed width and tabular figures so every row's date starts at the same x and
+// the times line up under each other, leaving a blank where a time_log has no
+// clock time to show.
+function Stamp({ value }: { value: string }) {
+  return (
+    <span className="w-32 shrink-0 whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+      {formatStamp(value)}
+    </span>
+  );
+}
+
 function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
     <span className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -130,7 +152,7 @@ function LogRow({ log, who, onEdit, onDelete }: {
         <span className="text-sm flex-1">
           {t("timeline.loggedHours", { hours: log.hours })} · {who}
         </span>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">{log.work_date}</span>
+        <Stamp value={log.work_date} />
         <RowActions onEdit={onEdit} onDelete={onDelete} />
       </div>
       {log.notes && <div className="ml-6 text-sm text-muted-foreground">{log.notes}</div>}
@@ -161,7 +183,7 @@ function EventRow({ event, onEdit, onDelete }: {
           ? <MessageSquare className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
           : <GitCommitHorizontal className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />}
         <span className="text-sm flex-1">{headline ?? event.body}</span>
-        <span className="text-xs text-muted-foreground whitespace-nowrap">{event.occurred_at}</span>
+        <Stamp value={event.occurred_at} />
         {isNote && <RowActions onEdit={onEdit} onDelete={onDelete} />}
       </div>
       {!isNote && event.body && (
