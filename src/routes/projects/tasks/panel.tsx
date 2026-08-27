@@ -777,7 +777,10 @@ export function TimeLogsSection({ task, members }: { task: Task; members: Member
   );
 }
 
-function TimeLogEditForm({ initial, onSubmit, onCancel }: {
+// Exported so the task detail page can reuse this exact edit form: unlike
+// TimeLogForm (create-only, needs a member picker), an edit never changes who
+// logged the hours, so its shape matches TimeLogUpdateInput one-to-one.
+export function TimeLogEditForm({ initial, onSubmit, onCancel }: {
   initial: TimeLog;
   onSubmit: (input: TimeLogUpdateInput) => Promise<void>;
   onCancel: () => void;

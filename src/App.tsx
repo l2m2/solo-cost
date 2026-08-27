@@ -10,6 +10,7 @@ import MembersPage from "@/routes/members";
 import ClientsPage from "@/routes/clients";
 import ProjectsListPage from "@/routes/projects/list";
 import ProjectDetailPage from "@/routes/projects/detail";
+import TaskDetailPage from "@/routes/projects/tasks/detail";
 import TrashPage from "@/routes/trash";
 import SettingsPage from "@/routes/settings";
 import { IntegrityFailedDialog } from "@/components/dialogs/IntegrityFailedDialog";
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="projects" element={<ProjectsListPage />} />
             <Route path="projects/:id" element={<ProjectDetailPage />} />
+            <Route path="projects/:projectId/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="trash" element={<TrashPage />} />

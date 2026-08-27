@@ -265,7 +265,10 @@
     "pauseReasonRequired": "暂停任务必须填写原因",
     "pauseReasonPlaceholder": "在等什么？例如：等客户确认设计稿",
     "resumeNote": "备注（选填）",
-    "pausedFor": "已暂停 {{days}} 天"
+    "pausedFor": "已暂停 {{days}} 天",
+    "backToList": "返回任务列表",
+    "detailTitle": "任务详情",
+    "basicInfo": "基本信息"
   },
   "taskStatus": {
     "todo": "待办",
