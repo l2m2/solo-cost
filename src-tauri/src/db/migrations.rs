@@ -31,6 +31,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0008_tasks_status_dates",
         include_str!("../../migrations/0008_tasks_status_dates.sql"),
     ),
+    (
+        "0009_task_events",
+        include_str!("../../migrations/0009_task_events.sql"),
+    ),
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {
@@ -115,7 +119,7 @@ mod tests {
         assert_eq!(n, 1);
 
         let v = current_version(&conn).unwrap();
-        assert_eq!(v, 8);
+        assert_eq!(v, 9);
     }
 
     #[test]
@@ -123,6 +127,134 @@ mod tests {
         let conn = open_in_memory_for_test("p").unwrap();
         run(&conn).unwrap();
         run(&conn).unwrap(); // second run should not error
-        assert_eq!(current_version(&conn).unwrap(), 8);
+        assert_eq!(current_version(&conn).unwrap(), 9);
+    }
+
+    #[test]
+    fn migration_0009_allows_paused_status() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks(project_id, title, status) VALUES(1, 'T', 'paused')",
+            [],
+        )
+        .unwrap();
+        let s: String = conn
+            .query_row("SELECT status FROM tasks WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(s, "paused");
+    }
+
+    #[test]
+    fn migration_0009_backfills_history_for_existing_tasks() {
+        // Simulate a pre-0009 database: apply every migration except the last,
+        // insert a finished task, then let 0009 run and check the timeline.
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_meta_table(&conn).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+        let upto = (MIGRATIONS.len() - 1) as i64;
+        for (idx, (_, sql)) in MIGRATIONS.iter().enumerate() {
+            if (idx as i64) >= upto {
+                break;
+            }
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO app_meta(key, value) VALUES('schema_version', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [upto.to_string()],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks(project_id, title, status, started_at, completed_at, created_at)
+             VALUES(1, 'T', 'done', '2026-01-02 09:00:00', '2026-01-05 18:00:00',
+                    '2026-01-01 08:00:00')",
+            [],
+        )
+        .unwrap();
+
+        run(&conn).unwrap();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT to_status, occurred_at FROM task_events
+                 WHERE task_id = 1 ORDER BY occurred_at ASC",
+            )
+            .unwrap();
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                ("todo".to_string(), "2026-01-01 08:00:00".to_string()),
+                ("in_progress".to_string(), "2026-01-02 09:00:00".to_string()),
+                ("done".to_string(), "2026-01-05 18:00:00".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn migration_0009_backfill_orders_done_after_started_when_completed_at_missing() {
+        // A task imported as already 'done' but with no completed_at (e.g. a
+        // zentao import whose 完成日期 was left blank). Before the fix, the
+        // catch-all fell back to created_at for the 'done' event, which sorts
+        // before the 'in_progress' event seeded from started_at — the task
+        // would appear to finish before it started.
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_meta_table(&conn).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+        let upto = (MIGRATIONS.len() - 1) as i64;
+        for (idx, (_, sql)) in MIGRATIONS.iter().enumerate() {
+            if (idx as i64) >= upto {
+                break;
+            }
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO app_meta(key, value) VALUES('schema_version', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [upto.to_string()],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO companies(name) VALUES('Co')", []).unwrap();
+        conn.execute("INSERT INTO projects(company_id, name) VALUES(1, 'P')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO tasks(project_id, title, status, started_at, completed_at, created_at)
+             VALUES(1, 'T', 'done', '2026-01-02 09:00:00', NULL, '2026-01-01 08:00:00')",
+            [],
+        )
+        .unwrap();
+
+        run(&conn).unwrap();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT to_status, occurred_at FROM task_events
+                 WHERE task_id = 1 ORDER BY occurred_at ASC, id ASC",
+            )
+            .unwrap();
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                ("todo".to_string(), "2026-01-01 08:00:00".to_string()),
+                ("in_progress".to_string(), "2026-01-02 09:00:00".to_string()),
+                ("done".to_string(), "2026-01-02 09:00:00".to_string()),
+            ]
+        );
     }
 }

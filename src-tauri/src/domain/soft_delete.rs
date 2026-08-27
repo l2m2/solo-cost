@@ -37,6 +37,14 @@ pub fn soft_delete_project(conn: &Connection, id: i64) -> AppResult<()> {
            AND task_id IN (SELECT id FROM tasks WHERE project_id = ?2 AND deleted_at IS NULL)",
         rusqlite::params![ts, id],
     )?;
+    // task_events cascade through tasks too; must run before the tasks UPDATE
+    // below, since it selects tasks via deleted_at IS NULL.
+    tx.execute(
+        "UPDATE task_events SET deleted_at = ?1
+         WHERE deleted_at IS NULL
+           AND task_id IN (SELECT id FROM tasks WHERE project_id = ?2 AND deleted_at IS NULL)",
+        rusqlite::params![ts, id],
+    )?;
     tx.execute(
         "UPDATE tasks SET deleted_at = ?1
          WHERE project_id = ?2 AND deleted_at IS NULL",
@@ -76,6 +84,12 @@ pub fn restore_project(conn: &Connection, id: i64) -> AppResult<()> {
     )?;
     tx.execute(
         "UPDATE time_logs SET deleted_at = NULL
+         WHERE deleted_at = ?2
+           AND task_id IN (SELECT id FROM tasks WHERE project_id = ?1)",
+        rusqlite::params![id, ts],
+    )?;
+    tx.execute(
+        "UPDATE task_events SET deleted_at = NULL
          WHERE deleted_at = ?2
            AND task_id IN (SELECT id FROM tasks WHERE project_id = ?1)",
         rusqlite::params![id, ts],
@@ -149,6 +163,11 @@ pub fn soft_delete_task(conn: &Connection, id: i64) -> AppResult<()> {
          WHERE task_id = ?2 AND deleted_at IS NULL",
         rusqlite::params![ts, id],
     )?;
+    tx.execute(
+        "UPDATE task_events SET deleted_at = ?1
+         WHERE task_id = ?2 AND deleted_at IS NULL",
+        rusqlite::params![ts, id],
+    )?;
     tx.commit()?;
     Ok(())
 }
@@ -182,6 +201,11 @@ pub fn restore_task(conn: &Connection, id: i64) -> AppResult<()> {
     tx.execute("UPDATE tasks SET deleted_at = NULL WHERE id = ?1", [id])?;
     tx.execute(
         "UPDATE time_logs SET deleted_at = NULL
+         WHERE task_id = ?1 AND deleted_at = ?2",
+        rusqlite::params![id, ts],
+    )?;
+    tx.execute(
+        "UPDATE task_events SET deleted_at = NULL
          WHERE task_id = ?1 AND deleted_at = ?2",
         rusqlite::params![id, ts],
     )?;

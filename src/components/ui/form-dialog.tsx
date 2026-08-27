@@ -10,10 +10,13 @@ type FormDialogContextValue = {
 
 const FormDialogContext = React.createContext<FormDialogContextValue | null>(null);
 
+const NO_DIALOG: FormDialogContextValue = { markDirty: () => {} };
+
+/** Returns a no-op outside a FormDialogContent, so the same form component can
+ *  also render inline on a page. */
 export function useFormDialog(): FormDialogContextValue {
   const ctx = React.useContext(FormDialogContext);
-  if (!ctx) throw new Error("useFormDialog must be used inside <FormDialogContent>");
-  return ctx;
+  return ctx ?? NO_DIALOG;
 }
 
 /**

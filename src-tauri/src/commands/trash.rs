@@ -156,6 +156,11 @@ pub(crate) fn purge_impl(conn: &Connection, entity_type: &str, id: i64) -> AppRe
     if entity_type == "project" {
         // physically delete children first to respect FK
         tx.execute(
+            "DELETE FROM task_events
+             WHERE task_id IN (SELECT id FROM tasks WHERE project_id = ?1)",
+            [id],
+        )?;
+        tx.execute(
             "DELETE FROM time_logs
              WHERE task_id IN (SELECT id FROM tasks WHERE project_id = ?1)",
             [id],
@@ -164,6 +169,7 @@ pub(crate) fn purge_impl(conn: &Connection, entity_type: &str, id: i64) -> AppRe
         tx.execute("DELETE FROM cost_entries WHERE project_id = ?1", [id])?;
         tx.execute("DELETE FROM contract_payments WHERE project_id = ?1", [id])?;
     } else if entity_type == "task" {
+        tx.execute("DELETE FROM task_events WHERE task_id = ?1", [id])?;
         tx.execute("DELETE FROM time_logs WHERE task_id = ?1", [id])?;
     }
     let n = tx.execute(
@@ -371,6 +377,87 @@ mod tests {
         assert!(types.contains(&"task"));
         assert!(types.contains(&"contract_payment"));
         assert!(types.contains(&"time_log"));
+    }
+
+    #[test]
+    fn soft_delete_task_cascades_to_events() {
+        let db = TestDb::new();
+        db.conn
+            .execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", [])
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO task_events(task_id, kind, body, occurred_at)
+                 VALUES(1, 'note', '备注', datetime('now'))",
+                [],
+            )
+            .unwrap();
+        soft_delete::soft_delete_task(&db.conn, 1).unwrap();
+        let alive: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_events WHERE task_id = 1 AND deleted_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(alive, 0);
+        soft_delete::restore_task(&db.conn, 1).unwrap();
+        let back: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM task_events WHERE task_id = 1 AND deleted_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(back, 1);
+    }
+
+    #[test]
+    fn purge_task_hard_deletes_events() {
+        let db = TestDb::new();
+        db.conn
+            .execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", [])
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO task_events(task_id, kind, body, occurred_at)
+                 VALUES(1, 'note', '备注', datetime('now'))",
+                [],
+            )
+            .unwrap();
+        soft_delete::soft_delete_task(&db.conn, 1).unwrap();
+        purge_impl(&db.conn, "task", 1).unwrap();
+        let n: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM task_events WHERE task_id = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn purge_project_hard_deletes_task_events() {
+        let db = TestDb::new();
+        db.conn
+            .execute("INSERT INTO tasks(project_id, title) VALUES(1, 'T')", [])
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO task_events(task_id, kind, body, occurred_at)
+                 VALUES(1, 'note', '备注', datetime('now'))",
+                [],
+            )
+            .unwrap();
+        soft_delete::soft_delete_project(&db.conn, 1).unwrap();
+        purge_impl(&db.conn, "project", 1).unwrap();
+        let n: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM task_events", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0);
     }
 
     #[test]

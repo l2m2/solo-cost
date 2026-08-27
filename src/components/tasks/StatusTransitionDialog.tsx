@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,38 +7,67 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";
 import { nowDatetimeLocal } from "@/lib/time";
-import type { Task } from "@/types";
+import type { StatusChange, Task, TaskInput } from "@/types";
 
 export const TASK_STATUS_BADGE_CLASS: Record<string, string> = {
   todo: "bg-slate-100 text-slate-700",
   in_progress: "bg-amber-100 text-amber-700",
+  paused: "bg-rose-100 text-rose-700",
   done: "bg-emerald-100 text-emerald-700",
   closed: "bg-zinc-200 text-zinc-500",
 };
 
-// Shared start/complete dialog body for a task. Used by the project detail page
-// and the dashboard todo-task card so both flows behave identically: pick a
-// timestamp, optionally log hours (on complete), and edit the description.
-export function StatusTransitionDialog({ task, label, fieldKey, existingHours, onSubmit, onCancel }: {
+export type TransitionMode = "start" | "complete" | "pause" | "resume";
+
+const TARGET_STATUS: Record<TransitionMode, string> = {
+  start: "in_progress",
+  complete: "done",
+  pause: "paused",
+  resume: "in_progress",
+};
+
+// Shared transition dialog for a task, used by the project task panel, the task
+// detail page and the dashboard todo card so all three behave identically:
+// pick a timestamp, optionally log hours (on complete), attach a note.
+export function StatusTransitionDialog({
+  task, mode, existingHours, onSubmit, onCancel,
+}: {
   task: Task;
-  label: string;
-  fieldKey: "started_at" | "completed_at";
+  mode: TransitionMode;
   existingHours?: number;
-  onSubmit: (input: Record<string, unknown>) => Promise<void>;
+  onSubmit: (input: TaskInput & { hours?: number }, change: StatusChange) => Promise<void>;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
+  const showHours = mode === "complete";
+  // Pause and resume do not own a column on tasks; only start/complete write
+  // back to started_at / completed_at.
+  const dateField = mode === "start" ? "started_at" : mode === "complete" ? "completed_at" : null;
+
   const [datetime, setDatetime] = useState(
-    task[fieldKey] ? task[fieldKey]!.replace(" ", "T").slice(0, 16) : nowDatetimeLocal()
+    dateField && task[dateField]
+      ? task[dateField]!.replace(" ", "T").slice(0, 16)
+      : nowDatetimeLocal()
   );
   const [startedAt, setStartedAt] = useState(
     task.started_at ? task.started_at.replace(" ", "T").slice(0, 16) : ""
   );
   const [description, setDescription] = useState(task.description ?? "");
+  const [note, setNote] = useState("");
   const [hours, setHours] = useState(0);
   const [busy, setBusy] = useState(false);
-  const showHours = fieldKey === "completed_at";
+
+  const dateLabel =
+    mode === "start" ? t("task.startedAt")
+    : mode === "complete" ? t("task.completedAt")
+    : mode === "pause" ? t("task.pausedAt")
+    : t("task.resumedAt");
 
   const handleSubmit = async () => {
+    if (mode === "pause" && !note.trim()) {
+      toast.error(t("task.pauseReasonRequired"));
+      return;
+    }
     if (showHours) {
       // Completing a task must attribute its hours to someone, and the task's
       // total actual hours (already logged + this session) must end up > 0.
@@ -53,26 +83,26 @@ export function StatusTransitionDialog({ task, label, fieldKey, existingHours, o
     setBusy(true);
     try {
       const stored = datetime ? datetime.replace("T", " ") : null;
-      const storedStartedAt = showHours && startedAt
-        ? startedAt.replace("T", " ")
-        : null;
-      const payload: Record<string, unknown> = {
+      const storedStartedAt = showHours && startedAt ? startedAt.replace("T", " ") : null;
+      const input: TaskInput & { hours?: number } = {
         title: task.title,
         description: description.trim() || null,
         assignee_id: task.assignee_id,
         estimated_hours: task.estimated_hours,
         due_date: task.due_date,
-        started_at: task.started_at,
+        started_at: storedStartedAt ?? task.started_at,
         completed_at: task.completed_at,
         module_id: task.module_id,
         external_ref: task.external_ref,
       };
-      payload[fieldKey] = stored;
-      if (showHours) {
-        if (storedStartedAt) payload.started_at = storedStartedAt;
-        if (hours > 0) payload.hours = hours;
-      }
-      await onSubmit(payload);
+      if (dateField) input[dateField] = stored;
+      if (showHours && hours > 0) input.hours = hours;
+      const change: StatusChange = {
+        to: TARGET_STATUS[mode],
+        occurred_at: stored,
+        body: note.trim() || null,
+      };
+      await onSubmit(input, change);
     } finally { setBusy(false); }
   };
 
@@ -81,7 +111,7 @@ export function StatusTransitionDialog({ task, label, fieldKey, existingHours, o
       <div className="text-sm text-muted-foreground">{task.title}</div>
       {showHours && (
         <div className="space-y-1">
-          <Label>开始时间</Label>
+          <Label>{t("task.startedAt")}</Label>
           <Input
             type="datetime-local"
             value={startedAt}
@@ -90,7 +120,7 @@ export function StatusTransitionDialog({ task, label, fieldKey, existingHours, o
         </div>
       )}
       <div className="space-y-1">
-        <Label>{label}</Label>
+        <Label>{dateLabel}</Label>
         <Input
           type="datetime-local"
           value={datetime}
@@ -116,12 +146,32 @@ export function StatusTransitionDialog({ task, label, fieldKey, existingHours, o
           />
         </div>
       )}
-      <div className="space-y-1">
-        <Label>描述</Label>
-        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-      </div>
+      {mode === "pause" && (
+        <div className="space-y-1">
+          <Label>{t("task.pauseReason")}</Label>
+          <Textarea
+            autoFocus
+            rows={3}
+            value={note}
+            placeholder={t("task.pauseReasonPlaceholder")}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </div>
+      )}
+      {mode === "resume" && (
+        <div className="space-y-1">
+          <Label>{t("task.resumeNote")}</Label>
+          <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+      )}
+      {mode !== "pause" && mode !== "resume" && (
+        <div className="space-y-1">
+          <Label>{t("task.description")}</Label>
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+        </div>
+      )}
       <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>取消</Button>
+        <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
         <Button onClick={handleSubmit} disabled={busy}>确定</Button>
       </DialogFooter>
     </div>

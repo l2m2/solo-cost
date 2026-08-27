@@ -254,13 +254,38 @@
     "unassigned": "未指派",
     "module": "模块",
     "logsCount": "{{n}} 条工时",
-    "deleteConfirm": "确认删除任务「{{title}}」？关联工时将被一并软删，可在回收站恢复。"
+    "deleteConfirm": "确认删除任务「{{title}}」？关联工时将被一并软删，可在回收站恢复。",
+    "pause": "暂停",
+    "resume": "恢复",
+    "pauseTitle": "暂停任务",
+    "resumeTitle": "恢复任务",
+    "pausedAt": "暂停时间",
+    "resumedAt": "恢复时间",
+    "pauseReason": "暂停原因",
+    "pauseReasonRequired": "暂停任务必须填写原因",
+    "pauseReasonPlaceholder": "在等什么？例如：等客户确认设计稿",
+    "resumeNote": "备注（选填）",
+    "pausedFor": "已暂停 {{days}} 天",
+    "backToList": "返回任务列表",
+    "detailTitle": "任务详情",
+    "basicInfo": "基本信息"
   },
   "taskStatus": {
     "todo": "待办",
     "in_progress": "进行中",
+    "paused": "已暂停",
     "done": "已完成",
     "closed": "已关闭"
+  },
+  "timeline": {
+    "title": "动态",
+    "empty": "暂无动态",
+    "notePlaceholder": "写点什么…… 例如今天卡在哪儿了",
+    "addNote": "添加备注",
+    "loggedHours": "记录工时 {{hours}}h",
+    "created": "创建任务",
+    "changed": "{{from}} → {{to}}",
+    "noteDeleteConfirm": "确认删除这条备注？删除后无法从回收站恢复。"
   },
   "pagination": {
     "info": "共 {{total}} 条 · 第 {{page}} / {{pages}} 页",

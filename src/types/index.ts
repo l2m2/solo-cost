@@ -205,6 +205,28 @@ export interface TaskInput {
   external_ref?: string | null;
 }
 
+export type TaskEventKind = "note" | "status_change";
+
+export interface TaskEvent {
+  id: number;
+  task_id: number;
+  kind: TaskEventKind;
+  from_status: string | null;
+  to_status: string | null;
+  body: string | null;
+  occurred_at: string;
+  created_at: string;
+}
+
+// Carries a status transition to the backend. `occurred_at` lets the user
+// backdate when the change actually happened; `body` is the note attached to
+// it (mandatory when `to` is "paused").
+export interface StatusChange {
+  to: string;
+  occurred_at?: string | null;
+  body?: string | null;
+}
+
 export interface TimeLog {
   id: number;
   task_id: number;

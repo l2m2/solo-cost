@@ -1,18 +1,28 @@
 import { create } from "zustand";
 import { call } from "@/lib/ipc";
-import type { Task, TaskInput } from "@/types";
+import type { StatusChange, Task, TaskInput } from "@/types";
+import { useDashboardStore } from "./dashboard";
 import { useFinancialStore } from "./financial";
 import { useModuleStatsStore } from "./moduleStats";
+import { useTaskEventsStore } from "./taskEvents";
 
 interface S {
   byProject: Record<number, Task[]>;
   statusFilter: string | null;
   loadFor: (projectId: number, statusFilter?: string | null) => Promise<void>;
   create: (projectId: number, input: TaskInput) => Promise<Task>;
-  update: (id: number, input: TaskInput, projectId: number) => Promise<Task>;
-  setStatus: (id: number, status: string, projectId: number) => Promise<void>;
+  update: (id: number, input: TaskInput, projectId: number, change?: StatusChange) => Promise<Task>;
+  setStatus: (id: number, change: StatusChange, projectId: number) => Promise<void>;
   softDelete: (id: number, projectId: number) => Promise<void>;
   reset: () => void;
+}
+
+// The timeline is only worth refetching for a task whose detail page is open;
+// elsewhere the events have never been loaded and nobody is looking at them.
+async function refreshEventsIfLoaded(taskId: number) {
+  if (useTaskEventsStore.getState().byTask[taskId]) {
+    await useTaskEventsStore.getState().loadFor(taskId);
+  }
 }
 
 export const useTasksStore = create<S>((set, get) => ({
@@ -28,15 +38,23 @@ export const useTasksStore = create<S>((set, get) => ({
     await useModuleStatsStore.getState().refresh(projectId);
     return t;
   },
-  async update(id, input, projectId) {
-    const t = await call<Task>("update_task", { id, input });
+  async update(id, input, projectId, change) {
+    const t = await call<Task>("update_task", { id, input, change: change ?? null });
     await get().loadFor(projectId, get().statusFilter);
     await useModuleStatsStore.getState().refresh(projectId);
+    await refreshEventsIfLoaded(id);
+    // A mutation here may have happened from the task detail page, which the
+    // dashboard's todo card can navigate into. Without this, the dashboard's
+    // "already loaded for this company" guard would keep showing the task's
+    // pre-mutation status/overdue flag until something else forces a reload.
+    useDashboardStore.getState().invalidate();
     return t;
   },
-  async setStatus(id, status, projectId) {
-    await call<Task>("set_task_status", { id, status });
+  async setStatus(id, change, projectId) {
+    await call<Task>("set_task_status", { id, change });
     await get().loadFor(projectId, get().statusFilter);
+    await refreshEventsIfLoaded(id);
+    useDashboardStore.getState().invalidate();
   },
   async softDelete(id, projectId) {
     // Task delete cascades to time_logs, which affects labor cost
@@ -46,6 +64,7 @@ export const useTasksStore = create<S>((set, get) => ({
     } finally {
       await useFinancialStore.getState().refresh(projectId);
       await useModuleStatsStore.getState().refresh(projectId);
+      useDashboardStore.getState().invalidate();
     }
   },
   reset() {

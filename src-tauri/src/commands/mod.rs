@@ -10,6 +10,7 @@ pub mod modules;
 pub mod payments;
 pub mod projects;
 pub mod search;
+pub mod task_events;
 pub mod tasks;
 pub mod timelogs;
 pub mod trash;
