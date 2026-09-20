@@ -163,7 +163,7 @@ pub fn call(app: &AppHandle, name: &str, arguments: Value) -> Value {
 
 #[derive(serde::Deserialize)]
 struct OverviewInput {
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     scope: IncomeScope,
     #[serde(flatten)]
     range: DateRange,

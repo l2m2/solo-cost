@@ -66,7 +66,7 @@ pub enum RankMetric {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RankIncomeInput {
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     pub scope: IncomeScope,
     #[serde(flatten)]
     pub range: DateRange,
@@ -114,7 +114,7 @@ pub enum TrendGranularity {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct IncomeTrendInput {
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     pub scope: IncomeScope,
     #[serde(flatten)]
     pub range: DateRange,
@@ -129,7 +129,7 @@ pub struct IncomeTrendRow {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PaymentListInput {
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     pub scope: IncomeScope,
     #[serde(flatten)]
     pub range: DateRange,
@@ -178,7 +178,7 @@ pub enum IncomeDetailKind {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct IncomeDetailInput {
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     pub scope: IncomeScope,
     #[serde(flatten)]
     pub range: DateRange,
