@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod domain;
 mod error;
+mod mcp;
 mod state;
 
 use crate::error::AppResult;
