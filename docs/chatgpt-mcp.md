@@ -47,6 +47,24 @@ tunnel-client run --profile solo-cost
 4. 扫描工具，确认能看到 6 个只读工具。
 5. 在 Project Chat 的工具菜单选择该 App，或在问题中使用 `@Solo Cost`。
 
+### 3.1 连接失败时的判断
+
+如果 ChatGPT 回复“需要先让 Solo Cost 在当前会话的可用工具中暴露出来”，通常表示本地
+服务本身没有问题，但当前 Project Chat 尚未启用这个自定义 App。`127.0.0.1` 是本机地址，
+ChatGPT 云端不能直接访问；必须同时保持 `tunnel-client run` 和沃工本运行。
+
+按以下顺序检查：
+
+1. 沃工本“设置 → ChatGPT 连接”显示服务运行中、数据库已解锁。
+2. `tunnel-client doctor --profile solo-cost --explain` 显示客户端配置和连接检查通过。
+3. ChatGPT 的自定义 App 能看到 Solo Cost，并扫描出 6 个只读工具。
+4. 在 Project Chat 工具菜单中启用该 App；必要时在问题中写 `@Solo Cost`。
+
+连接成功后，ChatGPT 的回复中应出现工具调用，而不是只给出 MCP 配置建议。
+
+不要把 `CONTROL_PLANE_API_KEY` 写入项目文件、Shell 历史提交、数据库或截图；密钥只应
+保存在本机运行环境中。
+
 示例：
 
 ```text
@@ -68,4 +86,3 @@ tunnel-client run --profile solo-cost
 - MCP 只能读取数据，不能新建、修改或删除记录。
 - 锁定或退出沃工本后，ChatGPT 无法继续查询数据。
 - 如果更换电脑，需要迁移沃工本加密备份，并在新电脑重新配置 tunnel-client。
-
