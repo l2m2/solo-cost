@@ -20,6 +20,10 @@
 
 ## 启动程序
 
+## ChatGPT 数据访问
+
+应用内置只读本地 MCP 服务，可通过 OpenAI Secure MCP Tunnel 在 ChatGPT Project Chat 中查询收入、到手、销售分成、人工收入和剩余利润。配置方法见 [ChatGPT MCP 连接指南](docs/chatgpt-mcp.md)。
+
 ### 1. 安装依赖
 
 ```bash

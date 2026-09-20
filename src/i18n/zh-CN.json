@@ -424,6 +424,20 @@
   },
   "settings": {
     "title": "设置",
+    "chatgpt": {
+      "sectionTitle": "ChatGPT 连接",
+      "address": "本地 MCP 地址",
+      "serviceStatus": "服务状态",
+      "databaseStatus": "数据库状态",
+      "running": "运行中",
+      "stopped": "未运行",
+      "unlocked": "已解锁，可查询",
+      "locked": "已锁定",
+      "keepRunning": "在 ChatGPT 查询数据时，沃工本必须保持运行并处于解锁状态。",
+      "keyNotice": "OpenAI API Key 由 tunnel-client 的运行环境管理，沃工本不会保存它。",
+      "refresh": "刷新状态",
+      "refreshing": "刷新中…"
+    },
     "backup": {
       "sectionTitle": "备份与恢复",
       "statusLabel": "最近一次备份",

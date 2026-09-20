@@ -6,6 +6,7 @@ pub mod companies;
 pub mod costs;
 pub mod dashboard;
 pub mod members;
+pub mod mcp;
 pub mod modules;
 pub mod payments;
 pub mod projects;
