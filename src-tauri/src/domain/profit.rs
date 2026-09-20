@@ -122,21 +122,7 @@ pub fn project_financial_summary(
         |r| r.get(0),
     )?;
 
-    // labor cost — per-log compute then sum (precision-safe)
-    let mut stmt = conn.prepare(
-        "SELECT tl.hours, tl.daily_cost_snapshot_cents
-         FROM time_logs tl JOIN tasks t ON t.id = tl.task_id
-         WHERE t.project_id = ?1 AND tl.deleted_at IS NULL AND t.deleted_at IS NULL",
-    )?;
-    let mut labor: i64 = 0;
-    let rows = stmt.query_map([project_id], |r| {
-        Ok((r.get::<_, f64>(0)?, r.get::<_, i64>(1)?))
-    })?;
-    for r in rows {
-        let (hours, snap) = r?;
-        let cost = (hours / 8.0 * snap as f64).round() as i64;
-        labor += cost;
-    }
+    let labor = crate::domain::income::project_labor_income(conn, project_id)?;
 
     // payments
     let expected: i64 = conn.query_row(
