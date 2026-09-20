@@ -25,14 +25,15 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(AppState::default())
         .setup(|app| {
             let version = app.package_info().version.to_string();
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&format!("沃工本 v{version}"));
             }
+            crate::mcp::server::start_mcp_server(app.handle().clone());
             Ok(())
         })
-        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             ping,
             commands::auth::is_initialized,
@@ -84,6 +85,7 @@ pub fn run() {
             commands::members::update_member,
             commands::members::set_member_active,
             commands::members::delete_member,
+            commands::mcp::get_mcp_status,
             commands::payments::list_payments,
             commands::payments::get_payment,
             commands::payments::create_payment,

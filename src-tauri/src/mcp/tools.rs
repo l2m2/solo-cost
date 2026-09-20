@@ -189,14 +189,7 @@ fn with_conn<T>(
     query: impl FnOnce(&rusqlite::Connection) -> Result<T, AppError>,
 ) -> Result<T, ToolError> {
     let state = app.state::<AppState>();
-    let guard = state
-        .conn
-        .lock()
-        .map_err(|_| ToolError::new("INTERNAL_ERROR", "数据库状态不可用"))?;
-    let conn = guard
-        .as_ref()
-        .ok_or_else(|| ToolError::new("APP_LOCKED", "应用尚未解锁"))?;
-    query(conn).map_err(ToolError::from)
+    state.with_conn(query).map_err(ToolError::from)
 }
 
 struct ToolError {
@@ -235,4 +228,3 @@ impl From<AppError> for ToolError {
         }
     }
 }
-
