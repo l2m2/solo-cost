@@ -29,6 +29,7 @@ dist-ssr/
 # Build caches
 .vite/
 .turbo/
+.worktrees/
 
 # Tauri
 src-tauri/target/
