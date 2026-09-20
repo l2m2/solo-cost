@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useBackupStore } from "@/stores/backup";
+import { useMcpStore } from "@/stores/mcp";
 import { useAuthStore } from "@/stores/auth";
 import CompaniesPage from "@/routes/companies";
 import CategoriesPage from "@/routes/categories";
@@ -128,11 +129,18 @@ export default function SettingsPage() {
     useBackupStore();
   const [busy, setBusy] = useState(false);
   const [openRestore, setOpenRestore] = useState(false);
+  const {
+    status: mcpStatus,
+    loading: mcpLoading,
+    error: mcpError,
+    loadStatus: loadMcpStatus,
+  } = useMcpStore();
 
   useEffect(() => {
     loadStatus();
     loadList();
-  }, [loadStatus, loadList]);
+    loadMcpStatus();
+  }, [loadStatus, loadList, loadMcpStatus]);
 
   const doCreate = async () => {
     setBusy(true);
@@ -172,6 +180,7 @@ export default function SettingsPage() {
           <TabsTrigger value="backup">{t("settings.backup.sectionTitle")}</TabsTrigger>
           <TabsTrigger value="companies">{t("nav.companies")}</TabsTrigger>
           <TabsTrigger value="categories">{t("nav.categories")}</TabsTrigger>
+          <TabsTrigger value="chatgpt">{t("settings.chatgpt.sectionTitle")}</TabsTrigger>
         </TabsList>
         <TabsContent value="backup" className="mt-4 space-y-4">
           <Card>
@@ -232,6 +241,35 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="categories" className="mt-4">
           <CategoriesPage />
+        </TabsContent>
+        <TabsContent value="chatgpt" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {t("settings.chatgpt.sectionTitle")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="grid gap-2 sm:grid-cols-[10rem_1fr]">
+                <span className="text-muted-foreground">{t("settings.chatgpt.address")}</span>
+                <code className="break-all">{mcpStatus?.address ?? "http://127.0.0.1:47831/mcp"}</code>
+                <span className="text-muted-foreground">{t("settings.chatgpt.serviceStatus")}</span>
+                <span>{mcpStatus?.running ? t("settings.chatgpt.running") : t("settings.chatgpt.stopped")}</span>
+                <span className="text-muted-foreground">{t("settings.chatgpt.databaseStatus")}</span>
+                <span>{mcpStatus?.database_unlocked ? t("settings.chatgpt.unlocked") : t("settings.chatgpt.locked")}</span>
+              </div>
+              {(mcpError || mcpStatus?.error) && (
+                <div className="text-destructive">{mcpError ?? mcpStatus?.error}</div>
+              )}
+              <div className="space-y-2 text-muted-foreground">
+                <p>{t("settings.chatgpt.keepRunning")}</p>
+                <p>{t("settings.chatgpt.keyNotice")}</p>
+              </div>
+              <Button variant="outline" onClick={loadMcpStatus} disabled={mcpLoading}>
+                {mcpLoading ? t("settings.chatgpt.refreshing") : t("settings.chatgpt.refresh")}
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
       <RestoreDialog open={openRestore} onClose={() => setOpenRestore(false)} />
