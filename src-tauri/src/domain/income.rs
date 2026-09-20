@@ -83,6 +83,8 @@ fn default_rank_limit() -> i64 {
 #[derive(Debug, Clone, Serialize)]
 pub struct IncomeRankRow {
     pub id: i64,
+    pub company_id: i64,
+    pub company_name: String,
     pub name: String,
     pub metrics: IncomeMetrics,
     pub collection_rate: f64,
@@ -319,7 +321,7 @@ fn resolve_companies(conn: &Connection, scope: &IncomeScope) -> AppResult<Vec<Co
 fn load_projects(
     conn: &Connection,
     companies: &[CompanyRef],
-    range: &DateRange,
+    _range: &DateRange,
 ) -> AppResult<Vec<ProjectRow>> {
     let mut statement = conn.prepare(
         "SELECT p.id, p.company_id, co.name, p.name, p.client_id, c.name, p.status,
@@ -330,14 +332,12 @@ fn load_projects(
          JOIN companies co ON co.id = p.company_id
          LEFT JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
          WHERE p.company_id = ?1 AND p.deleted_at IS NULL
-           AND (?2 IS NULL OR p.end_date IS NULL OR p.end_date >= ?2)
-           AND (?3 IS NULL OR p.start_date IS NULL OR p.start_date <= ?3)
          ORDER BY p.id",
     )?;
     let mut output = Vec::new();
     for company in companies {
         let rows = statement.query_map(
-            params![company.id, range.start_date, range.end_date],
+            [company.id],
             |row| {
                 Ok(ProjectRow {
                     id: row.get(0)?,
@@ -508,13 +508,15 @@ pub fn rank_income_sources(
     }
     let companies = resolve_companies(conn, &input.scope)?;
     let projects = load_projects(conn, &companies, &input.range)?;
-    let mut groups: BTreeMap<(i64, String), (IncomeMetrics, i64, i64)> = BTreeMap::new();
+    let mut groups: BTreeMap<(i64, i64, String, String), (IncomeMetrics, i64, i64)> = BTreeMap::new();
     for project in &projects {
         let metrics = project_metrics(conn, project, &input.range)?;
         let key = match input.dimension {
-            RankDimension::Project => (project.id, project.name.clone()),
+            RankDimension::Project => (project.id, project.company_id, project.company_name.clone(), project.name.clone()),
             RankDimension::Client => (
                 project.client_id.unwrap_or(0),
+                project.company_id,
+                project.company_name.clone(),
                 project.client_name.clone().unwrap_or_else(|| "未分配客户".into()),
             ),
         };
@@ -525,8 +527,10 @@ pub fn rank_income_sources(
     }
     let mut rows: Vec<IncomeRankRow> = groups
         .into_iter()
-        .map(|((id, name), (metrics, received, contract))| IncomeRankRow {
+        .map(|((id, company_id, company_name, name), (metrics, received, contract))| IncomeRankRow {
             id,
+            company_id,
+            company_name,
             name,
             collection_rate: if contract == 0 {
                 0.0
@@ -697,7 +701,15 @@ pub fn get_income_trend(
             },
         };
         for project in &projects {
-            add_metrics(metrics, &project_metrics(conn, project, &range)?);
+            let mut period_metrics = project_metrics(conn, project, &range)?;
+            // Contract and potential commission describe the whole project. They are
+            // not repeated in every cash-flow period; the trend is an earned/received
+            // view, while the overview remains the source for the potential total.
+            period_metrics.contract_exclusive_cents = 0;
+            period_metrics.commission_potential_cents = 0;
+            period_metrics.take_home_potential_cents = 0;
+            period_metrics.residual_profit_potential_cents = 0;
+            add_metrics(metrics, &period_metrics);
         }
     }
     Ok(periods

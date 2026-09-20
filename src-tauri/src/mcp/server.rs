@@ -130,10 +130,15 @@ fn origin_allowed(request: &Request) -> bool {
     match origin {
         None => true,
         Some(value) => {
-            value == "null"
-                || value.starts_with("http://127.0.0.1")
-                || value.starts_with("http://localhost")
-                || value.starts_with("tauri://localhost")
+            matches!(
+                value,
+                "null"
+                    | "http://localhost"
+                    | "http://localhost:1420"
+                    | "http://127.0.0.1"
+                    | "http://127.0.0.1:1420"
+                    | "tauri://localhost"
+            )
         }
     }
 }

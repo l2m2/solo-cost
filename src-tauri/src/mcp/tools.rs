@@ -117,6 +117,7 @@ fn scope_schema(extra: Map<String, Value>) -> Value {
 }
 
 pub fn call(app: &AppHandle, name: &str, arguments: Value) -> Value {
+    let arguments = with_default_scope(arguments);
     let result = match name {
         "get_income_overview" => parse::<OverviewInput>(arguments).and_then(|input| {
             with_conn(app, |conn| {
@@ -148,17 +149,33 @@ pub fn call(app: &AppHandle, name: &str, arguments: Value) -> Value {
     };
 
     match result {
-        Ok(value) => json!({
+        Ok(value) => {
+            let structured = if value.is_array() {
+                json!({"items": value})
+            } else {
+                value.clone()
+            };
+            json!({
             "content":[{"type":"text","text":value.to_string()}],
-            "structuredContent":value,
+            "structuredContent":structured,
             "isError":false
-        }),
+            })
+        },
         Err(error) => json!({
             "content":[{"type":"text","text":error.message}],
             "structuredContent":{"error":{"code":error.code,"message":error.message}},
             "isError":true
         }),
     }
+}
+
+fn with_default_scope(mut arguments: Value) -> Value {
+    if let Value::Object(ref mut object) = arguments {
+        object
+            .entry("scope")
+            .or_insert_with(|| Value::String("current_company".into()));
+    }
+    arguments
 }
 
 #[derive(serde::Deserialize)]
