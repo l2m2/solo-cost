@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Added
+- 新增 ChatGPT 只读连接：应用运行并解锁时，可通过本地 MCP 与 Secure MCP Tunnel 在 Project Chat 中查询收入、到手、销售分成、人工收入、剩余利润、回款和相关明细
+- 设置页新增“ChatGPT 连接”状态，可查看本地 MCP 地址、服务运行状态和数据库解锁状态
+
 ## 0.6.0 (2026-08-27)
 
 ### Added
