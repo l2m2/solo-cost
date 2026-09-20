@@ -39,6 +39,14 @@ tunnel-client run --profile solo-cost
 
 保持 tunnel-client 和沃工本同时运行。API Key 只保存在你选择的运行环境中，不要写入项目文件或数据库。
 
+本项目提供了启动脚本。它会在运行时静默读取 API Key，不会把密钥写入仓库：
+
+```bash
+./scripts/run-solo-cost-tunnel.sh
+```
+
+脚本会先执行 `doctor`，检查通过后自动启动 Tunnel；终端窗口需要保持运行。
+
 ## 3. 在 ChatGPT 中创建 App
 
 1. 在 ChatGPT 设置中开启 Developer Mode。
