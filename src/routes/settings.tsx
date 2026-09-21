@@ -197,14 +197,14 @@ export default function SettingsPage() {
     }
     const company = companies.find((item) => item.id === Number(reportCompanyId));
     const safeCompanyName = (company?.name ?? "company").replace(/[\\/:*?"<>|]/g, "-");
-    const picked = await save({
-      defaultPath: `Solo-Cost-${safeCompanyName}-${reportStartDate}-${reportEndDate}.md`,
-      filters: [{ name: "Markdown", extensions: ["md"] }],
-    });
-    if (!picked) return;
-
     setReportBusy(true);
     try {
+      const picked = await save({
+        defaultPath: `Solo-Cost-${safeCompanyName}-${reportStartDate}-${reportEndDate}.md`,
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      });
+      if (!picked) return;
+
       const result = await call<{ absolute_path: string }>("export_chatgpt_report", {
         input: {
           company_id: Number(reportCompanyId),

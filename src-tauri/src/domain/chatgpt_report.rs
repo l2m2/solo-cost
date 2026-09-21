@@ -44,7 +44,7 @@ pub fn build(conn: &Connection, input: &ChatGptReportInput) -> AppResult<String>
             range: range.clone(),
             dimension: RankDimension::Project,
             metric: RankMetric::TakeHome,
-            limit: 200,
+            limit: i64::MAX,
         },
     )?;
     let trend = income::get_income_trend(
@@ -74,6 +74,7 @@ pub fn build(conn: &Connection, input: &ChatGptReportInput) -> AppResult<String>
             break;
         }
     }
+    let receivables = income::list_receivables_as_of(conn, &scope, &input.end_date)?;
 
     let company = overview
         .companies
@@ -88,7 +89,7 @@ pub fn build(conn: &Connection, input: &ChatGptReportInput) -> AppResult<String>
         .iter()
         .map(|row| row.actual_amount_cents.unwrap_or(0))
         .sum();
-    let outstanding_total: i64 = payment_rows
+    let outstanding_total: i64 = receivables
         .iter()
         .map(|row| row.outstanding_cents.max(0))
         .sum();
@@ -117,7 +118,14 @@ pub fn build(conn: &Connection, input: &ChatGptReportInput) -> AppResult<String>
     output.push_str("- 到手收入 = 收入 - 销售分成 - 一般成本。\n");
     output.push_str("- 人工收入属于本人收入，已经包含在到手收入中，不应重复相加。\n");
     output.push_str("- 剩余利润 = 到手收入 - 人工收入。\n");
-    output.push_str("- 潜在值以合同收入计算；已实现值以实际回款计算。\n\n");
+    output.push_str(
+        "- 合同收入和潜在值采用所选公司全部有效项目的全周期合同口径，不按所选日期拆分。\n",
+    );
+    output.push_str("- 实际回款、一般成本、人工收入和已实现值按所选日期范围统计。\n");
+    output.push_str(&format!(
+        "- 应收余额截至 {}，包含以前期间逾期和未填写预计日期的未收款，不含预计日期晚于截止日的款项。\n\n",
+        input.end_date
+    ));
 
     output.push_str("## 核心指标\n\n");
     output.push_str("| 指标 | 潜在/合同口径 | 已实现/回款口径 |\n");
@@ -201,7 +209,7 @@ pub fn build(conn: &Connection, input: &ChatGptReportInput) -> AppResult<String>
     output.push_str("| 项目 | 款项 | 预计日期 | 计划金额 | 已收金额 | 应收金额 |\n");
     output.push_str("| --- | --- | --- | ---: | ---: | ---: |\n");
     let mut receivable_count = 0;
-    for row in payment_rows.iter().filter(|row| row.outstanding_cents > 0) {
+    for row in &receivables {
         receivable_count += 1;
         output.push_str(&format!(
             "| {} | {} | {} | {} | {} | {} |\n",

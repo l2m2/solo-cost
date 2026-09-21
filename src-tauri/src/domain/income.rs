@@ -9,7 +9,9 @@ use std::collections::BTreeMap;
 pub enum IncomeScope {
     #[default]
     CurrentCompany,
-    Company { company_id: i64 },
+    Company {
+        company_id: i64,
+    },
     AllCompanies,
 }
 
@@ -198,6 +200,52 @@ fn validate_page(offset: i64, limit: i64) -> AppResult<()> {
     Ok(())
 }
 
+fn fixed_commission_realized_in_range(
+    conn: &Connection,
+    project_id: i64,
+    fixed_amount_cents: i64,
+    range: &DateRange,
+) -> AppResult<i64> {
+    let mut statement = conn.prepare(
+        "SELECT actual_amount_cents, actual_received_at
+         FROM contract_payments
+         WHERE project_id = ?1 AND deleted_at IS NULL AND actual_received_at IS NOT NULL
+         ORDER BY actual_received_at, id",
+    )?;
+    let rows = statement.query_map([project_id], |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let receipts: Vec<(i64, String)> = rows.collect::<Result<_, _>>()?;
+    if receipts.is_empty() {
+        return Ok(0);
+    }
+
+    let total_received: i64 = receipts.iter().map(|(amount, _)| amount).sum();
+    let mut allocated = 0;
+    let mut realized_in_range = 0;
+    for (index, (amount, received_at)) in receipts.iter().enumerate() {
+        let is_last = index + 1 == receipts.len();
+        let share = if is_last || total_received == 0 {
+            fixed_amount_cents - allocated
+        } else {
+            (fixed_amount_cents as f64 * *amount as f64 / total_received as f64).round() as i64
+        };
+        allocated += share;
+        let after_start = range
+            .start_date
+            .as_deref()
+            .map_or(true, |start| received_at.as_str() >= start);
+        let before_end = range
+            .end_date
+            .as_deref()
+            .map_or(true, |end| received_at.as_str() <= end);
+        if after_start && before_end {
+            realized_in_range += share;
+        }
+    }
+    Ok(realized_in_range)
+}
+
 fn resolve_companies(conn: &Connection, scope: &IncomeScope) -> AppResult<Vec<CompanyRef>> {
     let requested = match scope {
         IncomeScope::CurrentCompany => {
@@ -271,26 +319,23 @@ fn load_projects(
     )?;
     let mut output = Vec::new();
     for company in companies {
-        let rows = statement.query_map(
-            [company.id],
-            |row| {
-                Ok(ProjectRow {
-                    id: row.get(0)?,
-                    company_id: row.get(1)?,
-                    company_name: row.get(2)?,
-                    name: row.get(3)?,
-                    client_id: row.get(4)?,
-                    client_name: row.get(5)?,
-                    contract_cents: row.get(6)?,
-                    tax_inclusive: row.get::<_, i64>(7)? != 0,
-                    tax_rate: row.get(8)?,
-                    commission_mode: row.get(9)?,
-                    commission_rate: row.get(10)?,
-                    commission_amount_cents: row.get(11)?,
-                    commission_settled: row.get::<_, i64>(12)? != 0,
-                })
-            },
-        )?;
+        let rows = statement.query_map([company.id], |row| {
+            Ok(ProjectRow {
+                id: row.get(0)?,
+                company_id: row.get(1)?,
+                company_name: row.get(2)?,
+                name: row.get(3)?,
+                client_id: row.get(4)?,
+                client_name: row.get(5)?,
+                contract_cents: row.get(6)?,
+                tax_inclusive: row.get::<_, i64>(7)? != 0,
+                tax_rate: row.get(8)?,
+                commission_mode: row.get(9)?,
+                commission_rate: row.get(10)?,
+                commission_amount_cents: row.get(11)?,
+                commission_settled: row.get::<_, i64>(12)? != 0,
+            })
+        })?;
         for row in rows {
             output.push(row?);
         }
@@ -317,7 +362,11 @@ fn date_bounds(range: &DateRange) -> (Option<&str>, Option<&str>) {
     (range.start_date.as_deref(), range.end_date.as_deref())
 }
 
-fn project_metrics(conn: &Connection, project: &ProjectRow, range: &DateRange) -> AppResult<IncomeMetrics> {
+fn project_metrics(
+    conn: &Connection,
+    project: &ProjectRow,
+    range: &DateRange,
+) -> AppResult<IncomeMetrics> {
     let (start, end) = date_bounds(range);
     let (contract_inclusive, contract_exclusive) = contract_values(project);
     let received_inclusive: i64 = conn.query_row(
@@ -329,8 +378,7 @@ fn project_metrics(conn: &Connection, project: &ProjectRow, range: &DateRange) -
         params![project.id, start, end],
         |row| row.get(0),
     )?;
-    let received_exclusive =
-        (received_inclusive as f64 / (1.0 + project.tax_rate)).round() as i64;
+    let received_exclusive = (received_inclusive as f64 / (1.0 + project.tax_rate)).round() as i64;
     let general_cost: i64 = conn.query_row(
         "SELECT COALESCE(SUM(amount_cents), 0) FROM cost_entries
          WHERE project_id = ?1 AND deleted_at IS NULL
@@ -351,9 +399,12 @@ fn project_metrics(conn: &Connection, project: &ProjectRow, range: &DateRange) -
         "rate" => {
             (received_inclusive as f64 * project.commission_rate.unwrap_or(0.0)).round() as i64
         }
-        "fixed" if project.commission_settled && received_inclusive > 0 => {
-            project.commission_amount_cents.unwrap_or(0)
-        }
+        "fixed" if project.commission_settled => fixed_commission_realized_in_range(
+            conn,
+            project.id,
+            project.commission_amount_cents.unwrap_or(0),
+            range,
+        )?,
         _ => 0,
     };
     let take_home_potential = contract_exclusive - commission_potential - general_cost;
@@ -439,21 +490,30 @@ pub fn rank_income_sources(
     input: &RankIncomeInput,
 ) -> AppResult<Vec<IncomeRankRow>> {
     validate_date_range(&input.range)?;
-    if !(1..=200).contains(&input.limit) {
-        return Err(AppError::Validation("limit 必须在 1 到 200 之间".into()));
+    if input.limit < 1 {
+        return Err(AppError::Validation("limit 必须大于 0".into()));
     }
     let companies = resolve_companies(conn, &input.scope)?;
     let projects = load_projects(conn, &companies, &input.range)?;
-    let mut groups: BTreeMap<(i64, i64, String, String), (IncomeMetrics, i64, i64)> = BTreeMap::new();
+    let mut groups: BTreeMap<(i64, i64, String, String), (IncomeMetrics, i64, i64)> =
+        BTreeMap::new();
     for project in &projects {
         let metrics = project_metrics(conn, project, &input.range)?;
         let key = match input.dimension {
-            RankDimension::Project => (project.id, project.company_id, project.company_name.clone(), project.name.clone()),
+            RankDimension::Project => (
+                project.id,
+                project.company_id,
+                project.company_name.clone(),
+                project.name.clone(),
+            ),
             RankDimension::Client => (
                 project.client_id.unwrap_or(0),
                 project.company_id,
                 project.company_name.clone(),
-                project.client_name.clone().unwrap_or_else(|| "未分配客户".into()),
+                project
+                    .client_name
+                    .clone()
+                    .unwrap_or_else(|| "未分配客户".into()),
             ),
         };
         let entry = groups.entry(key).or_default();
@@ -463,18 +523,20 @@ pub fn rank_income_sources(
     }
     let mut rows: Vec<IncomeRankRow> = groups
         .into_iter()
-        .map(|((id, company_id, company_name, name), (metrics, received, contract))| IncomeRankRow {
-            id,
-            company_id,
-            company_name,
-            name,
-            collection_rate: if contract == 0 {
-                0.0
-            } else {
-                received as f64 / contract as f64
+        .map(
+            |((id, company_id, company_name, name), (metrics, received, contract))| IncomeRankRow {
+                id,
+                company_id,
+                company_name,
+                name,
+                collection_rate: if contract == 0 {
+                    0.0
+                } else {
+                    received as f64 / contract as f64
+                },
+                metrics,
             },
-            metrics,
-        })
+        )
         .collect();
     rows.sort_by(|left, right| {
         let score = |row: &IncomeRankRow| match input.metric {
@@ -488,7 +550,8 @@ pub fn rank_income_sources(
             .partial_cmp(&score(left))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    rows.truncate(input.limit as usize);
+    let limit = usize::try_from(input.limit).unwrap_or(usize::MAX);
+    rows.truncate(limit);
     Ok(rows)
 }
 
@@ -535,33 +598,11 @@ pub fn get_income_trend(
 
     let companies = resolve_companies(conn, &input.scope)?;
     let projects = load_projects(conn, &companies, &input.range)?;
-    let mut fixed_commission_periods = BTreeMap::new();
-    for project in &projects {
-        if project.commission_mode != "fixed" || !project.commission_settled {
-            continue;
-        }
-        let (range_start, range_end) = date_bounds(&input.range);
-        let received_at: Option<String> = conn.query_row(
-            "SELECT MAX(actual_received_at) FROM contract_payments
-             WHERE project_id = ?1 AND deleted_at IS NULL AND actual_received_at IS NOT NULL
-               AND (?2 IS NULL OR actual_received_at >= ?2)
-               AND (?3 IS NULL OR actual_received_at <= ?3)",
-            params![project.id, range_start, range_end],
-            |row| row.get(0),
-        )?;
-        if let Some(received_at) = received_at {
-            let received_at = parse_date(&received_at)?;
-            let period = match input.granularity {
-                TrendGranularity::Month => received_at.format("%Y-%m").to_string(),
-                TrendGranularity::Year => received_at.format("%Y").to_string(),
-            };
-            fixed_commission_periods.insert(project.id, period);
-        }
-    }
     for (period, metrics) in &mut periods {
         let range = match input.granularity {
             TrendGranularity::Month => {
-                let month_start = NaiveDate::parse_from_str(&format!("{period}-01"), "%Y-%m-%d").unwrap();
+                let month_start =
+                    NaiveDate::parse_from_str(&format!("{period}-01"), "%Y-%m-%d").unwrap();
                 let (year, month) = if month_start.month() == 12 {
                     (month_start.year() + 1, 1)
                 } else {
@@ -569,26 +610,31 @@ pub fn get_income_trend(
                 };
                 let next = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
                 DateRange {
-                    start_date: Some(month_start.to_string()),
-                    end_date: Some((next - chrono::Duration::days(1)).to_string()),
+                    start_date: Some(std::cmp::max(month_start, start).to_string()),
+                    end_date: Some(
+                        std::cmp::min(next - chrono::Duration::days(1), end).to_string(),
+                    ),
                 }
             }
             TrendGranularity::Year => DateRange {
-                start_date: Some(format!("{period}-01-01")),
-                end_date: Some(format!("{period}-12-31")),
+                start_date: Some(
+                    std::cmp::max(
+                        NaiveDate::parse_from_str(&format!("{period}-01-01"), "%Y-%m-%d").unwrap(),
+                        start,
+                    )
+                    .to_string(),
+                ),
+                end_date: Some(
+                    std::cmp::min(
+                        NaiveDate::parse_from_str(&format!("{period}-12-31"), "%Y-%m-%d").unwrap(),
+                        end,
+                    )
+                    .to_string(),
+                ),
             },
         };
         for project in &projects {
             let mut period_metrics = project_metrics(conn, project, &range)?;
-            if project.commission_mode == "fixed"
-                && fixed_commission_periods.get(&project.id) != Some(period)
-            {
-                period_metrics.commission_realized_cents = 0;
-                period_metrics.take_home_realized_cents = period_metrics.received_exclusive_cents
-                    - period_metrics.general_cost_cents;
-                period_metrics.residual_profit_realized_cents =
-                    period_metrics.take_home_realized_cents - period_metrics.labor_income_cents;
-            }
             // Contract and potential commission describe the whole project. They are
             // not repeated in every cash-flow period; the trend is an earned/received
             // view, while the overview remains the source for the potential total.
@@ -626,23 +672,24 @@ pub fn list_payments_page(conn: &Connection, input: &PaymentListInput) -> AppRes
          ORDER BY COALESCE(cp.actual_received_at, cp.expected_date) DESC, cp.id DESC",
     )?;
     for company_id in company_ids {
-        let rows = statement.query_map(params![company_id, input.project_id, start, end], |row| {
-            let expected: i64 = row.get(6)?;
-            let actual: Option<i64> = row.get(8)?;
-            Ok(PaymentRow {
-                id: row.get(0)?,
-                company_id: row.get(1)?,
-                company_name: row.get(2)?,
-                project_id: row.get(3)?,
-                project_name: row.get(4)?,
-                name: row.get(5)?,
-                expected_amount_cents: expected,
-                expected_date: row.get(7)?,
-                actual_amount_cents: actual,
-                actual_received_at: row.get(9)?,
-                outstanding_cents: expected - actual.unwrap_or(0),
-            })
-        })?;
+        let rows =
+            statement.query_map(params![company_id, input.project_id, start, end], |row| {
+                let expected: i64 = row.get(6)?;
+                let actual: Option<i64> = row.get(8)?;
+                Ok(PaymentRow {
+                    id: row.get(0)?,
+                    company_id: row.get(1)?,
+                    company_name: row.get(2)?,
+                    project_id: row.get(3)?,
+                    project_name: row.get(4)?,
+                    name: row.get(5)?,
+                    expected_amount_cents: expected,
+                    expected_date: row.get(7)?,
+                    actual_amount_cents: actual,
+                    actual_received_at: row.get(9)?,
+                    outstanding_cents: expected - actual.unwrap_or(0),
+                })
+            })?;
         for row in rows {
             all.push(row?);
         }
@@ -660,4 +707,51 @@ pub fn list_payments_page(conn: &Connection, input: &PaymentListInput) -> AppRes
         total,
         items,
     })
+}
+
+pub fn list_receivables_as_of(
+    conn: &Connection,
+    scope: &IncomeScope,
+    end_date: &str,
+) -> AppResult<Vec<PaymentRow>> {
+    parse_date(end_date)?;
+    let companies = resolve_companies(conn, scope)?;
+    let mut receivables = Vec::new();
+    let mut statement = conn.prepare(
+        "SELECT cp.id, p.company_id, co.name, p.id, p.name, cp.name,
+                cp.expected_amount_cents, cp.expected_date,
+                CASE WHEN cp.actual_received_at <= ?2 THEN cp.actual_amount_cents ELSE NULL END,
+                CASE WHEN cp.actual_received_at <= ?2 THEN cp.actual_received_at ELSE NULL END
+         FROM contract_payments cp
+         JOIN projects p ON p.id = cp.project_id
+         JOIN companies co ON co.id = p.company_id
+         WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND cp.deleted_at IS NULL
+           AND (cp.expected_date IS NULL OR cp.expected_date <= ?2)
+           AND cp.expected_amount_cents
+               - COALESCE(CASE WHEN cp.actual_received_at <= ?2 THEN cp.actual_amount_cents END, 0) > 0
+         ORDER BY cp.expected_date IS NULL, cp.expected_date, cp.id",
+    )?;
+    for company in companies {
+        let rows = statement.query_map(params![company.id, end_date], |row| {
+            let expected: i64 = row.get(6)?;
+            let actual: Option<i64> = row.get(8)?;
+            Ok(PaymentRow {
+                id: row.get(0)?,
+                company_id: row.get(1)?,
+                company_name: row.get(2)?,
+                project_id: row.get(3)?,
+                project_name: row.get(4)?,
+                name: row.get(5)?,
+                expected_amount_cents: expected,
+                expected_date: row.get(7)?,
+                actual_amount_cents: actual,
+                actual_received_at: row.get(9)?,
+                outstanding_cents: expected - actual.unwrap_or(0),
+            })
+        })?;
+        for row in rows {
+            receivables.push(row?);
+        }
+    }
+    Ok(receivables)
 }
