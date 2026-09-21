@@ -1,12 +1,12 @@
 pub mod auth;
 pub mod backup;
 pub mod categories;
+pub mod chatgpt_report;
 pub mod clients;
 pub mod companies;
 pub mod costs;
 pub mod dashboard;
 pub mod members;
-pub mod mcp;
 pub mod modules;
 pub mod payments;
 pub mod projects;

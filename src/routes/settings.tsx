@@ -10,6 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -17,8 +24,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useBackupStore } from "@/stores/backup";
-import { useMcpStore } from "@/stores/mcp";
 import { useAuthStore } from "@/stores/auth";
+import { useCompanyStore } from "@/stores/company";
+import { call } from "@/lib/ipc";
+import { todayIso } from "@/lib/time";
 import CompaniesPage from "@/routes/companies";
 import CategoriesPage from "@/routes/categories";
 
@@ -128,19 +137,25 @@ export default function SettingsPage() {
   const { status, list, loadStatus, loadList, createNow, exportPlaintext } =
     useBackupStore();
   const [busy, setBusy] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   const [openRestore, setOpenRestore] = useState(false);
-  const {
-    status: mcpStatus,
-    loading: mcpLoading,
-    error: mcpError,
-    loadStatus: loadMcpStatus,
-  } = useMcpStore();
+  const { list: companies, currentId, loadAll: loadCompanies } = useCompanyStore();
+  const today = todayIso();
+  const [reportCompanyId, setReportCompanyId] = useState("");
+  const [reportStartDate, setReportStartDate] = useState(`${today.slice(0, 4)}-01-01`);
+  const [reportEndDate, setReportEndDate] = useState(today);
 
   useEffect(() => {
     loadStatus();
     loadList();
-    loadMcpStatus();
-  }, [loadStatus, loadList, loadMcpStatus]);
+    loadCompanies();
+  }, [loadStatus, loadList, loadCompanies]);
+
+  useEffect(() => {
+    if (!reportCompanyId && currentId !== null) {
+      setReportCompanyId(String(currentId));
+    }
+  }, [currentId, reportCompanyId]);
 
   const doCreate = async () => {
     setBusy(true);
@@ -172,6 +187,40 @@ export default function SettingsPage() {
     }
   };
 
+  const doExportChatGptReport = async () => {
+    if (!reportCompanyId) return toast.error(t("settings.chatgptReport.companyRequired"));
+    if (!reportStartDate || !reportEndDate) {
+      return toast.error(t("settings.chatgptReport.dateRequired"));
+    }
+    if (reportEndDate < reportStartDate) {
+      return toast.error(t("settings.chatgptReport.invalidRange"));
+    }
+    const company = companies.find((item) => item.id === Number(reportCompanyId));
+    const safeCompanyName = (company?.name ?? "company").replace(/[\\/:*?"<>|]/g, "-");
+    const picked = await save({
+      defaultPath: `Solo-Cost-${safeCompanyName}-${reportStartDate}-${reportEndDate}.md`,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!picked) return;
+
+    setReportBusy(true);
+    try {
+      const result = await call<{ absolute_path: string }>("export_chatgpt_report", {
+        input: {
+          company_id: Number(reportCompanyId),
+          start_date: reportStartDate,
+          end_date: reportEndDate,
+          dst_path: picked,
+        },
+      });
+      toast.success(t("settings.chatgptReport.success", { path: result.absolute_path }));
+    } catch (e: unknown) {
+      toast.error(t("common.error", { msg: String(e) }));
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
@@ -180,7 +229,7 @@ export default function SettingsPage() {
           <TabsTrigger value="backup">{t("settings.backup.sectionTitle")}</TabsTrigger>
           <TabsTrigger value="companies">{t("nav.companies")}</TabsTrigger>
           <TabsTrigger value="categories">{t("nav.categories")}</TabsTrigger>
-          <TabsTrigger value="chatgpt">{t("settings.chatgpt.sectionTitle")}</TabsTrigger>
+          <TabsTrigger value="chatgpt-report">{t("settings.chatgptReport.sectionTitle")}</TabsTrigger>
         </TabsList>
         <TabsContent value="backup" className="mt-4 space-y-4">
           <Card>
@@ -242,31 +291,57 @@ export default function SettingsPage() {
         <TabsContent value="categories" className="mt-4">
           <CategoriesPage />
         </TabsContent>
-        <TabsContent value="chatgpt" className="mt-4">
+        <TabsContent value="chatgpt-report" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                {t("settings.chatgpt.sectionTitle")}
+                {t("settings.chatgptReport.sectionTitle")}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="grid gap-2 sm:grid-cols-[10rem_1fr]">
-                <span className="text-muted-foreground">{t("settings.chatgpt.address")}</span>
-                <code className="break-all">{mcpStatus?.address ?? "http://127.0.0.1:47831/mcp"}</code>
-                <span className="text-muted-foreground">{t("settings.chatgpt.serviceStatus")}</span>
-                <span>{mcpStatus?.running ? t("settings.chatgpt.running") : t("settings.chatgpt.stopped")}</span>
-                <span className="text-muted-foreground">{t("settings.chatgpt.databaseStatus")}</span>
-                <span>{mcpStatus?.database_unlocked ? t("settings.chatgpt.unlocked") : t("settings.chatgpt.locked")}</span>
+            <CardContent className="space-y-5 text-sm">
+              <p className="text-muted-foreground">{t("settings.chatgptReport.description")}</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>{t("settings.chatgptReport.company")}</Label>
+                  <Select value={reportCompanyId} onValueChange={setReportCompanyId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("settings.chatgptReport.chooseCompany")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={String(company.id)}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-start-date">{t("settings.chatgptReport.startDate")}</Label>
+                  <Input
+                    id="report-start-date"
+                    type="date"
+                    value={reportStartDate}
+                    onChange={(event) => setReportStartDate(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-end-date">{t("settings.chatgptReport.endDate")}</Label>
+                  <Input
+                    id="report-end-date"
+                    type="date"
+                    value={reportEndDate}
+                    onChange={(event) => setReportEndDate(event.target.value)}
+                  />
+                </div>
               </div>
-              {(mcpError || mcpStatus?.error) && (
-                <div className="text-destructive">{mcpError ?? mcpStatus?.error}</div>
-              )}
-              <div className="space-y-2 text-muted-foreground">
-                <p>{t("settings.chatgpt.keepRunning")}</p>
-                <p>{t("settings.chatgpt.keyNotice")}</p>
+              <div className="rounded-md border bg-muted/30 p-3 text-muted-foreground">
+                {t("settings.chatgptReport.contents")}
               </div>
-              <Button variant="outline" onClick={loadMcpStatus} disabled={mcpLoading}>
-                {mcpLoading ? t("settings.chatgpt.refreshing") : t("settings.chatgpt.refresh")}
+              <Button onClick={doExportChatGptReport} disabled={reportBusy || !reportCompanyId}>
+                {reportBusy
+                  ? t("settings.chatgptReport.exporting")
+                  : t("settings.chatgptReport.export")}
               </Button>
             </CardContent>
           </Card>

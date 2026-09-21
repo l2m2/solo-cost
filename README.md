@@ -20,9 +20,9 @@
 
 ## 启动程序
 
-## ChatGPT 数据访问
+## ChatGPT 决策报表
 
-应用内置只读本地 MCP 服务，可通过 OpenAI Secure MCP Tunnel 在 ChatGPT Project Chat 中查询收入、到手、销售分成、人工收入和剩余利润。配置方法见 [ChatGPT MCP 连接指南](docs/chatgpt-mcp.md)。
+在“设置 → ChatGPT 决策报表”中选择公司和日期范围，即可生成 Markdown 报表。报表包含收入、回款、销售分成、一般成本、人工收入、到手收入、剩余利润、项目排行、月度趋势和应收明细，可直接上传到 ChatGPT Project Chat 分析。生成过程不会调用 OpenAI API，也不会自动上传数据。
 
 ### 1. 安装依赖
 

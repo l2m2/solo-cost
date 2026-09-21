@@ -417,10 +417,3 @@ export type SearchHit = {
   subtitle: string | null;
   project_id: number;
 };
-
-export interface McpStatus {
-  address: string;
-  running: boolean;
-  database_unlocked: boolean;
-  error: string | null;
-}

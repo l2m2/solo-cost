@@ -90,23 +90,6 @@ pub struct IncomeRankRow {
     pub collection_rate: f64,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ProjectDecisionSummary {
-    pub generated_at: String,
-    pub company: CompanyRef,
-    pub project_id: i64,
-    pub project_name: String,
-    pub client_name: Option<String>,
-    pub status: String,
-    pub metrics: IncomeMetrics,
-    pub expected_payment_cents: i64,
-    pub received_inclusive_cents: i64,
-    pub outstanding_cents: i64,
-    pub collection_rate: f64,
-    pub task_total: i64,
-    pub task_completed: i64,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrendGranularity {
@@ -170,53 +153,6 @@ pub struct PaymentPage {
     pub items: Vec<PaymentRow>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum IncomeDetailKind {
-    GeneralCost,
-    Commission,
-    Labor,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct IncomeDetailInput {
-    #[serde(flatten, default)]
-    pub scope: IncomeScope,
-    #[serde(flatten)]
-    pub range: DateRange,
-    pub kind: IncomeDetailKind,
-    pub project_id: Option<i64>,
-    pub member_id: Option<i64>,
-    pub category_id: Option<i64>,
-    #[serde(default)]
-    pub offset: i64,
-    #[serde(default = "default_page_limit")]
-    pub limit: i64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct IncomeDetailRow {
-    pub id: i64,
-    pub kind: String,
-    pub company_id: i64,
-    pub company_name: String,
-    pub project_id: i64,
-    pub project_name: String,
-    pub occurred_at: Option<String>,
-    pub label: String,
-    pub amount_cents: i64,
-    pub hours: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct IncomeDetailPage {
-    pub generated_at: String,
-    pub offset: i64,
-    pub limit: i64,
-    pub total: i64,
-    pub items: Vec<IncomeDetailRow>,
-}
-
 #[derive(Debug, Clone)]
 struct ProjectRow {
     id: i64,
@@ -225,7 +161,6 @@ struct ProjectRow {
     name: String,
     client_id: Option<i64>,
     client_name: Option<String>,
-    status: String,
     contract_cents: i64,
     tax_inclusive: bool,
     tax_rate: f64,
@@ -324,7 +259,7 @@ fn load_projects(
     _range: &DateRange,
 ) -> AppResult<Vec<ProjectRow>> {
     let mut statement = conn.prepare(
-        "SELECT p.id, p.company_id, co.name, p.name, p.client_id, c.name, p.status,
+        "SELECT p.id, p.company_id, co.name, p.name, p.client_id, c.name,
                 p.contract_amount_cents, p.contract_amount_is_tax_inclusive, p.tax_rate,
                 p.commission_mode, p.commission_rate, p.commission_amount_cents,
                 p.commission_settled, p.start_date, p.end_date
@@ -346,14 +281,13 @@ fn load_projects(
                     name: row.get(3)?,
                     client_id: row.get(4)?,
                     client_name: row.get(5)?,
-                    status: row.get(6)?,
-                    contract_cents: row.get(7)?,
-                    tax_inclusive: row.get::<_, i64>(8)? != 0,
-                    tax_rate: row.get(9)?,
-                    commission_mode: row.get(10)?,
-                    commission_rate: row.get(11)?,
-                    commission_amount_cents: row.get(12)?,
-                    commission_settled: row.get::<_, i64>(13)? != 0,
+                    contract_cents: row.get(6)?,
+                    tax_inclusive: row.get::<_, i64>(7)? != 0,
+                    tax_rate: row.get(8)?,
+                    commission_mode: row.get(9)?,
+                    commission_rate: row.get(10)?,
+                    commission_amount_cents: row.get(11)?,
+                    commission_settled: row.get::<_, i64>(12)? != 0,
                 })
             },
         )?;
@@ -417,7 +351,9 @@ fn project_metrics(conn: &Connection, project: &ProjectRow, range: &DateRange) -
         "rate" => {
             (received_inclusive as f64 * project.commission_rate.unwrap_or(0.0)).round() as i64
         }
-        "fixed" if project.commission_settled => project.commission_amount_cents.unwrap_or(0),
+        "fixed" if project.commission_settled && received_inclusive > 0 => {
+            project.commission_amount_cents.unwrap_or(0)
+        }
         _ => 0,
     };
     let take_home_potential = contract_exclusive - commission_potential - general_cost;
@@ -556,87 +492,6 @@ pub fn rank_income_sources(
     Ok(rows)
 }
 
-pub fn get_project_decision_summary(
-    conn: &Connection,
-    project_id: i64,
-) -> AppResult<ProjectDecisionSummary> {
-    let project = load_project(conn, project_id)?;
-    let metrics = project_metrics(conn, &project, &DateRange::default())?;
-    let (expected, received): (i64, i64) = conn.query_row(
-        "SELECT COALESCE(SUM(expected_amount_cents),0),
-                COALESCE(SUM(CASE WHEN actual_received_at IS NOT NULL THEN actual_amount_cents ELSE 0 END),0)
-         FROM contract_payments WHERE project_id = ?1 AND deleted_at IS NULL",
-        [project_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
-    let (task_total, task_completed): (i64, i64) = conn.query_row(
-        "SELECT COUNT(*), COALESCE(SUM(CASE WHEN status IN ('done','closed') THEN 1 ELSE 0 END),0)
-         FROM tasks WHERE project_id = ?1 AND deleted_at IS NULL",
-        [project_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
-    Ok(ProjectDecisionSummary {
-        generated_at: generated_at(),
-        company: CompanyRef {
-            id: project.company_id,
-            name: project.company_name,
-        },
-        project_id,
-        project_name: project.name,
-        client_name: project.client_name,
-        status: project.status,
-        metrics,
-        expected_payment_cents: expected,
-        received_inclusive_cents: received,
-        outstanding_cents: expected - received,
-        collection_rate: if expected == 0 {
-            0.0
-        } else {
-            received as f64 / expected as f64
-        },
-        task_total,
-        task_completed,
-    })
-}
-
-fn load_project(conn: &Connection, project_id: i64) -> AppResult<ProjectRow> {
-    conn.query_row(
-        "SELECT p.id, p.company_id, co.name, p.name, p.client_id, c.name, p.status,
-                p.contract_amount_cents, p.contract_amount_is_tax_inclusive, p.tax_rate,
-                p.commission_mode, p.commission_rate, p.commission_amount_cents,
-                p.commission_settled, p.start_date, p.end_date
-         FROM projects p JOIN companies co ON co.id = p.company_id
-         LEFT JOIN clients c ON c.id = p.client_id AND c.deleted_at IS NULL
-         WHERE p.id = ?1 AND p.deleted_at IS NULL",
-        [project_id],
-        |row| {
-            Ok(ProjectRow {
-                id: row.get(0)?,
-                company_id: row.get(1)?,
-                company_name: row.get(2)?,
-                name: row.get(3)?,
-                client_id: row.get(4)?,
-                client_name: row.get(5)?,
-                status: row.get(6)?,
-                contract_cents: row.get(7)?,
-                tax_inclusive: row.get::<_, i64>(8)? != 0,
-                tax_rate: row.get(9)?,
-                commission_mode: row.get(10)?,
-                commission_rate: row.get(11)?,
-                commission_amount_cents: row.get(12)?,
-                commission_settled: row.get::<_, i64>(13)? != 0,
-            })
-        },
-    )
-    .map_err(|error| match error {
-        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound {
-            entity: "project",
-            id: project_id,
-        },
-        other => AppError::Db(other),
-    })
-}
-
 pub fn get_income_trend(
     conn: &Connection,
     input: &IncomeTrendInput,
@@ -680,6 +535,29 @@ pub fn get_income_trend(
 
     let companies = resolve_companies(conn, &input.scope)?;
     let projects = load_projects(conn, &companies, &input.range)?;
+    let mut fixed_commission_periods = BTreeMap::new();
+    for project in &projects {
+        if project.commission_mode != "fixed" || !project.commission_settled {
+            continue;
+        }
+        let (range_start, range_end) = date_bounds(&input.range);
+        let received_at: Option<String> = conn.query_row(
+            "SELECT MAX(actual_received_at) FROM contract_payments
+             WHERE project_id = ?1 AND deleted_at IS NULL AND actual_received_at IS NOT NULL
+               AND (?2 IS NULL OR actual_received_at >= ?2)
+               AND (?3 IS NULL OR actual_received_at <= ?3)",
+            params![project.id, range_start, range_end],
+            |row| row.get(0),
+        )?;
+        if let Some(received_at) = received_at {
+            let received_at = parse_date(&received_at)?;
+            let period = match input.granularity {
+                TrendGranularity::Month => received_at.format("%Y-%m").to_string(),
+                TrendGranularity::Year => received_at.format("%Y").to_string(),
+            };
+            fixed_commission_periods.insert(project.id, period);
+        }
+    }
     for (period, metrics) in &mut periods {
         let range = match input.granularity {
             TrendGranularity::Month => {
@@ -702,6 +580,15 @@ pub fn get_income_trend(
         };
         for project in &projects {
             let mut period_metrics = project_metrics(conn, project, &range)?;
+            if project.commission_mode == "fixed"
+                && fixed_commission_periods.get(&project.id) != Some(period)
+            {
+                period_metrics.commission_realized_cents = 0;
+                period_metrics.take_home_realized_cents = period_metrics.received_exclusive_cents
+                    - period_metrics.general_cost_cents;
+                period_metrics.residual_profit_realized_cents =
+                    period_metrics.take_home_realized_cents - period_metrics.labor_income_cents;
+            }
             // Contract and potential commission describe the whole project. They are
             // not repeated in every cash-flow period; the trend is an earned/received
             // view, while the overview remains the source for the potential total.
@@ -767,149 +654,6 @@ pub fn list_payments_page(conn: &Connection, input: &PaymentListInput) -> AppRes
         .take(input.limit as usize)
         .collect();
     Ok(PaymentPage {
-        generated_at: generated_at(),
-        offset: input.offset,
-        limit: input.limit,
-        total,
-        items,
-    })
-}
-
-pub fn list_income_details(
-    conn: &Connection,
-    input: &IncomeDetailInput,
-) -> AppResult<IncomeDetailPage> {
-    validate_date_range(&input.range)?;
-    validate_page(input.offset, input.limit)?;
-    let companies = resolve_companies(conn, &input.scope)?;
-    let mut items = Vec::new();
-    for company in companies {
-        match input.kind {
-            IncomeDetailKind::GeneralCost => {
-                let mut statement = conn.prepare(
-                    "SELECT ce.id, p.id, p.name, ce.incurred_at,
-                            COALESCE(ce.description, cc.name), ce.amount_cents
-                     FROM cost_entries ce
-                     JOIN projects p ON p.id = ce.project_id
-                     JOIN cost_categories cc ON cc.id = ce.category_id
-                     WHERE p.company_id = ?1 AND p.deleted_at IS NULL AND ce.deleted_at IS NULL
-                       AND (?2 IS NULL OR p.id = ?2) AND (?3 IS NULL OR cc.id = ?3)
-                       AND (?4 IS NULL OR ce.incurred_at >= ?4)
-                       AND (?5 IS NULL OR ce.incurred_at <= ?5)
-                     ORDER BY ce.incurred_at DESC, ce.id DESC",
-                )?;
-                let rows = statement.query_map(
-                    params![
-                        company.id,
-                        input.project_id,
-                        input.category_id,
-                        input.range.start_date,
-                        input.range.end_date
-                    ],
-                    |row| {
-                        Ok(IncomeDetailRow {
-                            id: row.get(0)?,
-                            kind: "general_cost".into(),
-                            company_id: company.id,
-                            company_name: company.name.clone(),
-                            project_id: row.get(1)?,
-                            project_name: row.get(2)?,
-                            occurred_at: row.get(3)?,
-                            label: row.get(4)?,
-                            amount_cents: row.get(5)?,
-                            hours: None,
-                        })
-                    },
-                )?;
-                for row in rows {
-                    items.push(row?);
-                }
-            }
-            IncomeDetailKind::Labor => {
-                let mut statement = conn.prepare(
-                    "SELECT tl.id, p.id, p.name, tl.work_date, m.name, tl.hours,
-                            CAST(ROUND(tl.hours / 8.0 * tl.daily_cost_snapshot_cents) AS INTEGER)
-                     FROM time_logs tl
-                     JOIN tasks t ON t.id = tl.task_id
-                     JOIN projects p ON p.id = t.project_id
-                     JOIN members m ON m.id = tl.member_id
-                     WHERE p.company_id = ?1 AND p.deleted_at IS NULL
-                       AND t.deleted_at IS NULL AND tl.deleted_at IS NULL
-                       AND (?2 IS NULL OR p.id = ?2) AND (?3 IS NULL OR m.id = ?3)
-                       AND (?4 IS NULL OR tl.work_date >= ?4)
-                       AND (?5 IS NULL OR tl.work_date <= ?5)
-                     ORDER BY tl.work_date DESC, tl.id DESC",
-                )?;
-                let rows = statement.query_map(
-                    params![
-                        company.id,
-                        input.project_id,
-                        input.member_id,
-                        input.range.start_date,
-                        input.range.end_date
-                    ],
-                    |row| {
-                        Ok(IncomeDetailRow {
-                            id: row.get(0)?,
-                            kind: "labor".into(),
-                            company_id: company.id,
-                            company_name: company.name.clone(),
-                            project_id: row.get(1)?,
-                            project_name: row.get(2)?,
-                            occurred_at: row.get(3)?,
-                            label: row.get(4)?,
-                            hours: Some(row.get(5)?),
-                            amount_cents: row.get(6)?,
-                        })
-                    },
-                )?;
-                for row in rows {
-                    items.push(row?);
-                }
-            }
-            IncomeDetailKind::Commission => {
-                let projects = load_projects(
-                    conn,
-                    &[company.clone()],
-                    &input.range,
-                )?;
-                for project in projects {
-                    if input.project_id.is_some_and(|id| id != project.id) {
-                        continue;
-                    }
-                    let metrics = project_metrics(conn, &project, &input.range)?;
-                    items.push(IncomeDetailRow {
-                        id: project.id,
-                        kind: "commission".into(),
-                        company_id: company.id,
-                        company_name: company.name.clone(),
-                        project_id: project.id,
-                        project_name: project.name,
-                        occurred_at: None,
-                        label: if project.commission_settled {
-                            "已实现销售分成".into()
-                        } else {
-                            "潜在销售分成".into()
-                        },
-                        amount_cents: if project.commission_settled {
-                            metrics.commission_realized_cents
-                        } else {
-                            metrics.commission_potential_cents
-                        },
-                        hours: None,
-                    });
-                }
-            }
-        }
-    }
-    items.sort_by(|left, right| right.occurred_at.cmp(&left.occurred_at).then(right.id.cmp(&left.id)));
-    let total = items.len() as i64;
-    let items = items
-        .into_iter()
-        .skip(input.offset as usize)
-        .take(input.limit as usize)
-        .collect();
-    Ok(IncomeDetailPage {
         generated_at: generated_at(),
         offset: input.offset,
         limit: input.limit,

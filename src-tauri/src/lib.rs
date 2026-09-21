@@ -2,7 +2,6 @@ mod commands;
 mod db;
 mod domain;
 mod error;
-mod mcp;
 mod state;
 
 use crate::error::AppResult;
@@ -31,7 +30,6 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title(&format!("沃工本 v{version}"));
             }
-            crate::mcp::server::start_mcp_server(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -46,6 +44,7 @@ pub fn run() {
             commands::backup::export_plaintext_backup,
             commands::backup::get_backup_status,
             commands::backup::restore_from_backup,
+            commands::chatgpt_report::export_chatgpt_report,
             commands::companies::list_companies,
             commands::companies::get_company,
             commands::companies::create_company,
@@ -85,7 +84,6 @@ pub fn run() {
             commands::members::update_member,
             commands::members::set_member_active,
             commands::members::delete_member,
-            commands::mcp::get_mcp_status,
             commands::payments::list_payments,
             commands::payments::get_payment,
             commands::payments::create_payment,
