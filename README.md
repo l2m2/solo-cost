@@ -30,7 +30,11 @@
 pnpm install
 ```
 
-### 2. 开发模式（日常使用）
+### 2. 日常使用与开发调试
+
+日常使用请直接打开已安装的发行版（macOS 为 `/Applications/沃工本.app`），不要通过开发模式启动。
+
+仅在确实需要修改、调试代码时运行：
 
 ```bash
 pnpm tauri dev
@@ -44,13 +48,18 @@ pnpm tauri dev
 
 前端改动即时热更新；`src-tauri/` 下的 Rust 改动会触发自动重编译并重启窗口。
 
+> `pnpm tauri dev` 会生成体积较大的 Rust debug 构建缓存。调试结束后可运行
+> `cargo clean --manifest-path src-tauri/Cargo.toml` 清理；该命令不会删除源码、数据库或已安装应用。
+
 ### 3. 打包发行版
 
+项目默认只保留 release 构建，不长期保留 debug 构建缓存。macOS 发布时构建 Intel 与 Apple Silicon 通用包：
+
 ```bash
-pnpm tauri build
+pnpm tauri build --target universal-apple-darwin
 ```
 
-产物位于 `src-tauri/target/release/bundle/`：
+macOS 产物位于 `src-tauri/target/universal-apple-darwin/release/bundle/`。其他平台需要构建时运行 `pnpm tauri build`，产物位于对应的 `release/bundle/` 目录：
 
 - macOS：`.app` 与 `.dmg`
 - Windows：`.msi` / `.exe`
