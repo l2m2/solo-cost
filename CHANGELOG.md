@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+## 0.7.0 (2026-09-21)
 
 ### Added
 - 设置页新增“ChatGPT 决策报表”：按公司和日期范围一键生成 Markdown，包含收入、回款、销售分成、一般成本、人工收入、到手收入、剩余利润、项目排行、月度趋势和应收明细，可直接上传到 Project Chat 分析
