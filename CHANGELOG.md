@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Added
+- 项目支持取消并填写原因，恢复后可回到取消前的状态。概览底部可查看状态变更、取消和归档记录
+- 项目概览新增「已收到手」金额，与仪表盘采用相同口径
+
+### Changed
+- 项目详情按当前状态提供开工、交付、结款和返工等操作。提前收齐款项的项目可以直接交付并结款
+- 归档保留项目业务状态。旧版已归档项目在首次取消归档时可指定实际状态
+- 项目列表默认隐藏已取消和已归档的项目，可切换到「全部项目」查看。双击条目可进入详情，归档和删除收进「⋯」菜单
+- 项目概览集中展示合同额、实收、成本和利润，收入与成本明细按行展示
+
 ## 0.7.0 (2026-09-21)
 
 ### Added
