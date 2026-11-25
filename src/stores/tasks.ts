@@ -4,6 +4,7 @@ import type { StatusChange, Task, TaskInput } from "@/types";
 import { useDashboardStore } from "./dashboard";
 import { useFinancialStore } from "./financial";
 import { useModuleStatsStore } from "./moduleStats";
+import { useTimelogsStore } from "./timelogs";
 import { useTaskEventsStore } from "./taskEvents";
 
 interface S {
@@ -40,6 +41,10 @@ export const useTasksStore = create<S>((set, get) => ({
   },
   async update(id, input, projectId, change) {
     const t = await call<Task>("update_task", { id, input, change: change ?? null });
+    if (change?.hours) {
+      await useTimelogsStore.getState().loadFor(id);
+      await useFinancialStore.getState().refresh(projectId);
+    }
     await get().loadFor(projectId, get().statusFilter);
     await useModuleStatsStore.getState().refresh(projectId);
     await refreshEventsIfLoaded(id);

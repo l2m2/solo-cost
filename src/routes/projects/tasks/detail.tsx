@@ -119,21 +119,12 @@ export default function TaskDetailPage() {
     }
   };
 
-  const runTransition = async (input: TaskInput & { hours?: number }, change: StatusChange) => {
+  const runTransition = async (input: TaskInput, change: StatusChange) => {
     try {
       if (mode === "pause" || mode === "resume") {
         await setStatus(tid, change, pid);
       } else {
         await update(tid, input, pid, change);
-        if (mode === "complete" && typeof input.hours === "number" && input.hours > 0
-            && task.assignee_id != null) {
-          await createLog({
-            task_id: tid,
-            member_id: task.assignee_id,
-            work_date: new Date().toISOString().slice(0, 10),
-            hours: input.hours,
-          }, pid);
-        }
       }
       setMode(null);
       await reloadTask();
@@ -164,22 +155,22 @@ export default function TaskDetailPage() {
         <div className="flex items-center gap-1 shrink-0">
           {task.status === "todo" && (
             <Button size="sm" variant="outline" onClick={() => setMode("start")}>
-              <Play className="h-4 w-4 mr-1" />{t("taskStatus.in_progress")}
+              <Play className="h-4 w-4 mr-1" />{t("task.startTitle")}
             </Button>
           )}
           {task.status === "in_progress" && (
             <Button size="sm" variant="outline" onClick={() => setMode("pause")}>
-              <Pause className="h-4 w-4 mr-1" />{t("task.pause")}
+              <Pause className="h-4 w-4 mr-1" />{t("task.pauseTitle")}
             </Button>
           )}
           {task.status === "paused" && (
             <Button size="sm" variant="outline" onClick={() => setMode("resume")}>
-              <PlayCircle className="h-4 w-4 mr-1" />{t("task.resume")}
+              <PlayCircle className="h-4 w-4 mr-1" />{t("task.resumeTitle")}
             </Button>
           )}
-          {task.status !== "done" && task.status !== "closed" && (
+          {(task.status === "in_progress" || task.status === "paused") && (
             <Button size="sm" variant="outline" onClick={() => setMode("complete")}>
-              <CheckCircle className="h-4 w-4 mr-1" />{t("taskStatus.done")}
+              <CheckCircle className="h-4 w-4 mr-1" />{t("task.completeTitle")}
             </Button>
           )}
           {task.status === "done" && (
@@ -190,11 +181,13 @@ export default function TaskDetailPage() {
                 try { await setStatus(tid, { to: "closed" }, pid); await reloadTask(); await loadEvents(tid); }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
               }}
-            ><Archive className="h-4 w-4 mr-1" />{t("taskStatus.closed")}</Button>
+            ><Archive className="h-4 w-4 mr-1" />{t("task.closeTitle")}</Button>
           )}
           <Button
             size="sm"
             variant="ghost"
+            title={t("task.deleteTitle")}
+            aria-label={t("task.deleteTitle")}
             onClick={async () => {
               const ok = await confirmDialog(t("task.deleteConfirm", { title: task.title }), {
                 title: t("task.delete"),
@@ -282,7 +275,7 @@ export default function TaskDetailPage() {
 
       <Dialog open={mode !== null} onOpenChange={(o) => !o && setMode(null)}>
         <FormDialogContent>
-          <DialogHeader><DialogTitle>{t("task.title")}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{mode && t(`task.${mode}Title`)}</DialogTitle></DialogHeader>
           {mode && (
             <StatusTransitionDialog
               task={task}

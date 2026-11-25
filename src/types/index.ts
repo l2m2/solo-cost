@@ -233,6 +233,7 @@ export interface TaskEvent {
 // backdate when the change actually happened; `body` is the note attached to
 // it (mandatory when `to` is "paused").
 export interface StatusChange {
+  hours?: number;
   to: string;
   occurred_at?: string | null;
   body?: string | null;

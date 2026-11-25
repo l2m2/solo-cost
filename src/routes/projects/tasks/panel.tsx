@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/table";
 import { formatCNY } from "@/lib/money";
 import { useTasksStore } from "@/stores/tasks";
-import { useTimelogsStore } from "@/stores/timelogs";
 import { useMembersStore } from "@/stores/members";
 import { useModulesStore } from "@/stores/modules";
 import { useModuleStatsStore } from "@/stores/moduleStats";
@@ -36,7 +35,6 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { byProject, loadFor, create, update, setStatus } = useTasksStore();
-  const { create: createTimelog } = useTimelogsStore();
   const {
     byProject: modulesByProject,
     loadedForProject: modulesLoadedFor,
@@ -288,7 +286,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2"
-                            title="开始"
+                            title={t("task.startTitle")}
                             onClick={() => setStartingTask(tk)}
                           ><Play className="h-4 w-4" /></Button>
                         )}
@@ -297,7 +295,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2"
-                            title={t("task.pause")}
+                            title={t("task.pauseTitle")}
                             onClick={() => setPausingTask(tk)}
                           ><Pause className="h-4 w-4" /></Button>
                         )}
@@ -306,16 +304,16 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2"
-                            title={t("task.resume")}
+                            title={t("task.resumeTitle")}
                             onClick={() => setResumingTask(tk)}
                           ><PlayCircle className="h-4 w-4" /></Button>
                         )}
-                        {tk.status !== "done" && tk.status !== "closed" && (
+                        {(tk.status === "in_progress" || tk.status === "paused") && (
                           <Button
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2"
-                            title="完成"
+                            title={t("task.completeTitle")}
                             onClick={() => setCompletingTask(tk)}
                           ><CheckCircle className="h-4 w-4" /></Button>
                         )}
@@ -324,7 +322,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2"
-                            title="关闭任务"
+                            title={t("task.closeTitle")}
                             onClick={async () => {
                               try { await setStatus(tk.id, { to: "closed" }, projectId); }
                               catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
@@ -396,7 +394,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
 
       <Dialog open={!!startingTask} onOpenChange={(o) => !o && setStartingTask(null)}>
         <FormDialogContent>
-          <DialogHeader><DialogTitle>开始任务</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("task.startTitle")}</DialogTitle></DialogHeader>
           {startingTask && (
             <StatusTransitionDialog
               task={startingTask}
@@ -447,7 +445,7 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
 
       <Dialog open={!!completingTask} onOpenChange={(o) => !o && setCompletingTask(null)}>
         <FormDialogContent>
-          <DialogHeader><DialogTitle>完成任务</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("task.completeTitle")}</DialogTitle></DialogHeader>
           {completingTask && (
             <StatusTransitionDialog
               task={completingTask}
@@ -456,15 +454,6 @@ export default function TasksPanel({ projectId, companyId }: { projectId: number
               onSubmit={async (input, change) => {
                 try {
                   await update(completingTask.id, input, projectId, change);
-                  const h = input.hours;
-                  if (typeof h === "number" && h > 0 && completingTask.assignee_id != null) {
-                    await createTimelog({
-                      task_id: completingTask.id,
-                      member_id: completingTask.assignee_id,
-                      work_date: new Date().toISOString().slice(0, 10),
-                      hours: h,
-                    }, projectId);
-                  }
                   setCompletingTask(null);
                 }
                 catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }

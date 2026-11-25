@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { useCompanyStore } from "@/stores/company";
 import { useDashboardStore } from "@/stores/dashboard";
 import { useTasksStore } from "@/stores/tasks";
-import { useTimelogsStore } from "@/stores/timelogs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -247,27 +246,27 @@ function TodoTasksCard({
               <TableCell className="whitespace-nowrap tabular-nums" style={{ color: INK_SOFT }}>{r.completed_at ?? "—"}</TableCell>
               <TableCell className="text-right whitespace-nowrap">
                 {r.status === "todo" && (
-                  <Button size="sm" variant="ghost" className="h-7 px-2" title="开始" style={{ color: INK_SOFT }} onClick={() => onStart(r)}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.startTitle")} style={{ color: INK_SOFT }} onClick={() => onStart(r)}>
                     <Play className="h-4 w-4" />
                   </Button>
                 )}
                 {r.status === "in_progress" && (
-                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.pause")} style={{ color: INK_SOFT }} onClick={() => onPause(r)}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.pauseTitle")} style={{ color: INK_SOFT }} onClick={() => onPause(r)}>
                     <Pause className="h-4 w-4" />
                   </Button>
                 )}
                 {r.status === "paused" && (
-                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.resume")} style={{ color: INK_SOFT }} onClick={() => onResume(r)}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.resumeTitle")} style={{ color: INK_SOFT }} onClick={() => onResume(r)}>
                     <PlayCircle className="h-4 w-4" />
                   </Button>
                 )}
-                {r.status !== "done" && (
-                  <Button size="sm" variant="ghost" className="h-7 px-2" title="完成" style={{ color: INK_SOFT }} onClick={() => onComplete(r)}>
+                {(r.status === "in_progress" || r.status === "paused") && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.completeTitle")} style={{ color: INK_SOFT }} onClick={() => onComplete(r)}>
                     <CheckCircle className="h-4 w-4" />
                   </Button>
                 )}
                 {r.status === "done" && (
-                  <Button size="sm" variant="ghost" className="h-7 px-2" title="关闭任务" style={{ color: INK_SOFT }} onClick={() => onClose(r)}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" title={t("task.closeTitle")} style={{ color: INK_SOFT }} onClick={() => onClose(r)}>
                     <Archive className="h-4 w-4" />
                   </Button>
                 )}
@@ -296,7 +295,6 @@ export default function DashboardPage() {
   const { data, loadedForCompany, loadFor } = useDashboardStore();
   const updateTask = useTasksStore((s) => s.update);
   const setTaskStatus = useTasksStore((s) => s.setStatus);
-  const createTimelog = useTimelogsStore((s) => s.create);
   const [openYear, setOpenYear] = useState<DashYearRow | null>(null);
   const proratedReceipts = useMemo(
     () => (openYear ? prorateYearReceipts(openYear) : []),
@@ -528,7 +526,7 @@ export default function DashboardPage() {
 
       <Dialog open={!!startingTask} onOpenChange={(o) => !o && setStartingTask(null)}>
         <FormDialogContent>
-          <DialogHeader><DialogTitle>开始任务</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("task.startTitle")}</DialogTitle></DialogHeader>
           {startingTask && (
             <StatusTransitionDialog
               task={startingTask}
@@ -588,7 +586,7 @@ export default function DashboardPage() {
 
       <Dialog open={!!completingTask} onOpenChange={(o) => !o && setCompletingTask(null)}>
         <FormDialogContent>
-          <DialogHeader><DialogTitle>完成任务</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("task.completeTitle")}</DialogTitle></DialogHeader>
           {completingTask && (
             <StatusTransitionDialog
               task={completingTask}
@@ -597,15 +595,6 @@ export default function DashboardPage() {
               onSubmit={async (input, change) => {
                 try {
                   await updateTask(completingTask.id, input, completingTask.project_id, change);
-                  const h = input.hours;
-                  if (typeof h === "number" && h > 0 && completingTask.assignee_id != null) {
-                    await createTimelog({
-                      task_id: completingTask.id,
-                      member_id: completingTask.assignee_id,
-                      work_date: new Date().toISOString().slice(0, 10),
-                      hours: h,
-                    }, completingTask.project_id);
-                  }
                   setCompletingTask(null);
                   if (currentId != null) await loadFor(currentId);
                 } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }

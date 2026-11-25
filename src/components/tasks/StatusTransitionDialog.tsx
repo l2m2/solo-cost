@@ -35,7 +35,7 @@ export function StatusTransitionDialog({
   task: Task;
   mode: TransitionMode;
   existingHours?: number;
-  onSubmit: (input: TaskInput & { hours?: number }, change: StatusChange) => Promise<void>;
+  onSubmit: (input: TaskInput, change: StatusChange) => Promise<void>;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
@@ -88,7 +88,7 @@ export function StatusTransitionDialog({
     try {
       const stored = datetime ? datetime.replace("T", " ") : null;
       const storedStartedAt = showHours && startedAt ? startedAt.replace("T", " ") : null;
-      const input: TaskInput & { hours?: number } = {
+      const input: TaskInput = {
         title: task.title,
         description,
         assignee_id: task.assignee_id,
@@ -100,9 +100,9 @@ export function StatusTransitionDialog({
         external_ref: task.external_ref,
       };
       if (dateField) input[dateField] = stored;
-      if (showHours && hours > 0) input.hours = hours;
       const change: StatusChange = {
         to: TARGET_STATUS[mode],
+        hours: showHours ? hours : undefined,
         occurred_at: stored,
         body: note.trim() || null,
       };
@@ -170,7 +170,7 @@ export function StatusTransitionDialog({
       )}
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
-        <Button onClick={handleSubmit} disabled={busy}>确定</Button>
+        <Button onClick={handleSubmit} disabled={busy}>{t(`task.${mode}Title`)}</Button>
       </DialogFooter>
     </div>
   );

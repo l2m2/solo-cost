@@ -90,6 +90,7 @@ pub struct StatusChange {
     pub occurred_at: Option<String>,
     #[serde(default)]
     pub body: Option<String>,
+    pub hours: Option<f64>,
 }
 
 fn status_label(s: &str) -> &str {
@@ -107,13 +108,10 @@ fn transition_allowed(from: &str, to: &str) -> bool {
     matches!(
         (from, to),
         ("todo", "in_progress")
-            | ("todo", "closed")
             | ("in_progress", "paused")
             | ("in_progress", "done")
-            | ("in_progress", "closed")
             | ("paused", "in_progress")
             | ("paused", "done")
-            | ("paused", "closed")
             | ("done", "closed")
     )
 }
@@ -138,23 +136,18 @@ fn apply_transition(conn: &Connection, id: i64, change: &StatusChange) -> AppRes
     if !ALLOWED_STATUSES.contains(&change.to.as_str()) {
         return Err(AppError::Validation(format!("非法状态：{}", change.to)));
     }
-    let from: String = conn
-        .query_row(
-            "SELECT status FROM tasks WHERE id = ?1 AND deleted_at IS NULL",
-            [id],
-            |r| r.get(0),
-        )
-        .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => AppError::NotFound { entity: "task", id },
-            other => AppError::Db(other),
-        })?;
+    let task = get_impl(conn, id)?;
+    let from = task.status.as_str();
+    if change.hours.is_some() && change.to != "done" {
+        return Err(AppError::Validation("仅完成任务时可同时登记工时".into()));
+    }
     if from == change.to {
         return Ok(false);
     }
-    if !transition_allowed(&from, &change.to) {
+    if !transition_allowed(from, &change.to) {
         return Err(AppError::Validation(format!(
             "任务不能从「{}」变为「{}」",
-            status_label(&from),
+            status_label(from),
             status_label(&change.to)
         )));
     }
@@ -162,20 +155,65 @@ fn apply_transition(conn: &Connection, id: i64, change: &StatusChange) -> AppRes
     if change.to == "paused" && body.is_none() {
         return Err(AppError::Validation("暂停任务必须填写原因".into()));
     }
+    let supplied_time = change.occurred_at.as_deref().or_else(|| {
+        if change.to == "done" {
+            task.completed_at.as_deref()
+        } else {
+            None
+        }
+    });
+    let occurred_at = match supplied_time {
+        Some(value) => value.to_owned(),
+        None => conn.query_row("SELECT datetime('now','localtime')", [], |r| r.get(0))?,
+    };
+    if change.to == "done" {
+        record_completion(conn, &task, change.hours.unwrap_or(0.0), &occurred_at)?;
+    }
     conn.execute(
-        "UPDATE tasks SET status = ?1, updated_at = datetime('now')
+        "UPDATE tasks SET status = ?1, updated_at = datetime('now'),
+         completed_at = CASE WHEN ?1 = 'done' THEN ?3 ELSE completed_at END
          WHERE id = ?2 AND deleted_at IS NULL",
-        rusqlite::params![change.to, id],
+        rusqlite::params![change.to, id, occurred_at],
     )?;
-    // 'localtime': occurred_at is compared against timestamps typed into the
-    // datetime-local picker (local wall-clock), so the fallback must be on the
-    // same clock or a same-minute pause/note pair sorts hours apart.
     conn.execute(
         "INSERT INTO task_events(task_id, kind, from_status, to_status, body, occurred_at)
-         VALUES(?1, 'status_change', ?2, ?3, ?4, COALESCE(?5, datetime('now','localtime')))",
-        rusqlite::params![id, from, change.to, body, change.occurred_at.as_deref()],
+         VALUES(?1, 'status_change', ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, from, change.to, body, occurred_at],
     )?;
     Ok(true)
+}
+
+fn record_completion(
+    conn: &Connection,
+    task: &Task,
+    hours: f64,
+    occurred_at: &str,
+) -> AppResult<()> {
+    let member_id = task
+        .assignee_id
+        .ok_or_else(|| AppError::Validation("完成任务前请先指定负责人".into()))?;
+    if !(0.0..=24.0).contains(&hours) {
+        return Err(AppError::Validation("本次工时需在 0 至 24 小时之间".into()));
+    }
+    if task.actual_hours + hours <= 0.0 {
+        return Err(AppError::Validation("完成任务时总工时须大于 0".into()));
+    }
+    let work_date: Option<String> =
+        conn.query_row("SELECT date(?1)", [occurred_at], |r| r.get(0))?;
+    let work_date = work_date.ok_or_else(|| AppError::Validation("完成日期无效".into()))?;
+    if hours > 0.0 {
+        super::timelogs::create_impl(
+            conn,
+            &super::timelogs::TimeLogInput {
+                task_id: task.id,
+                member_id,
+                work_date,
+                hours,
+                notes: None,
+            },
+        )?;
+    }
+    Ok(())
 }
 
 /// Seeds the timeline for a freshly created task. Mirrors the 0009 backfill so
@@ -227,7 +265,9 @@ fn validate_module_belongs_to_project(
     module_id: Option<i64>,
     task_project_id: i64,
 ) -> AppResult<()> {
-    let Some(mid) = module_id else { return Ok(()); };
+    let Some(mid) = module_id else {
+        return Ok(());
+    };
     let pid: Option<i64> = conn
         .query_row(
             "SELECT project_id FROM modules WHERE id = ?1 AND deleted_at IS NULL",
@@ -376,6 +416,12 @@ pub(crate) fn update_impl(
     // input.status is deliberately not applied here. It survives only for
     // create_task / zentao import; routing every status change through
     // apply_transition is what keeps the timeline complete.
+    if change.is_some_and(|change| change.to == "done") {
+        let current = get_impl(&tx, id)?;
+        if current.status == "done" {
+            return Ok(current);
+        }
+    }
     let n = tx.execute(
         "UPDATE tasks SET
             title = ?1,
