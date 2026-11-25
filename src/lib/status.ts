@@ -4,26 +4,30 @@ export const STATUS_VALUES = [
   "in_progress",
   "delivered",
   "settled",
-  "archived",
+  "cancelled",
 ] as const;
 
 export type ProjectStatus = typeof STATUS_VALUES[number];
 
-const LABELS: Record<ProjectStatus, string> = {
+const LABELS: Record<ProjectStatus | "archived" | "unknown", string> = {
   negotiating: "商务洽谈",
   pending: "待启动",
   in_progress: "进行中",
   delivered: "已交付待结款",
   settled: "已结款",
+  unknown: "原状态未知",
+  cancelled: "已取消",
   archived: "已归档",
 };
 
-const BADGE_CLASSES: Record<ProjectStatus, string> = {
+const BADGE_CLASSES: Record<ProjectStatus | "archived" | "unknown", string> = {
   negotiating: "bg-slate-100 text-slate-700",
   pending: "bg-blue-100 text-blue-700",
   in_progress: "bg-amber-100 text-amber-700",
   delivered: "bg-purple-100 text-purple-700",
   settled: "bg-emerald-100 text-emerald-700",
+  cancelled: "bg-rose-100 text-rose-700",
+  unknown: "bg-zinc-100 text-zinc-500",
   archived: "bg-zinc-100 text-zinc-500",
 };
 

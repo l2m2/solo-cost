@@ -69,6 +69,7 @@
     "selectClient": "选择客户",
     "clientRequired": "请选择客户",
     "contractAmount": "合同总价",
+    "dateRange": "起止日期",
     "taxInclusive": "含税",
     "taxRate": "税率",
     "startDate": "开始日期",
@@ -80,9 +81,12 @@
     "commissionRate": "提成率",
     "commissionAmount": "提成金额",
     "commissionSettled": "已入账",
-    "empty": "当前公司还没有项目",
+    "empty": "没有符合当前筛选条件的项目",
     "filterByStatus": "按状态筛选",
-    "allStatuses": "全部（不含已归档）",
+    "scope": "项目范围",
+    "currentProjects": "当前项目",
+    "allProjects": "全部项目",
+    "allStatuses": "全部状态",
     "save": "保存",
     "nameRequired": "项目名必填",
     "delete": "删除项目",
@@ -187,7 +191,9 @@
     "in_progress": "进行中",
     "delivered": "已交付待结款",
     "settled": "已结款",
-    "archived": "已归档"
+    "archived": "已归档",
+    "cancelled": "已取消",
+    "unknown": "原状态未知"
   },
   "member": {
     "title": "成员",
@@ -315,6 +321,11 @@
     "snapshotHint": "录入时锁定该成员的日成本快照，后续调薪不影响本条记录"
   },
   "financial": {
+    "contractInclusive": "含税合同额",
+    "incomeDetail": "收入与回款",
+    "costDetail": "成本构成",
+    "inclusiveContract": "合同按含税金额录入",
+    "exclusiveContract": "合同按不含税金额录入",
     "revenueInclusive": "含税收入",
     "revenueExclusive": "不含税收入",
     "tax": "税额",
@@ -462,5 +473,30 @@
       "corruptedBody": "启动检查发现数据库文件不一致。请从最近一份可用备份恢复：",
       "corruptedNoBackup": "没有可用备份。请联系支持或从其他设备找回。"
     }
+  },
+  "lifecycle": {
+    "more": "更多操作",
+    "agree": "确认合作",
+    "start": "开始项目",
+    "negotiate": "返回洽谈",
+    "deliver": "标记已交付",
+    "deliverPaid": "交付并结款",
+    "settle": "确认结款",
+    "undoSettlement": "撤销结款标记",
+    "rework": "返工",
+    "archive": "归档项目",
+    "unarchive": "取消归档",
+    "cancel": "取消项目",
+    "restore": "恢复项目",
+    "reason": "取消原因（选填）",
+    "choose": "请选择恢复后的状态",
+    "confirm": "确认",
+    "history": "状态记录",
+    "empty": "暂无状态变更记录",
+    "expand": "查看全部（{{count}} 条）",
+    "collapse": "收起",
+    "created": "创建项目",
+    "archivedCount": "其中已归档 {{count}} 个",
+    "loading": "正在加载状态记录…"
   }
 }

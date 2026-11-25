@@ -39,6 +39,8 @@ export interface Project {
   /** Read-only: populated via backend JOIN clients. */
   client_name: string | null;
   status: string;
+  is_archived: boolean;
+  cancelled_from: string | null;
   contract_amount_cents: number;
   contract_amount_is_tax_inclusive: boolean;
   tax_rate: number;
@@ -52,6 +54,15 @@ export interface Project {
   commission_settled: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectStatusEvent {
+  id: number;
+  action: string;
+  from_status: string | null;
+  to_status: string;
+  reason: string | null;
+  created_at: string;
 }
 
 export interface ProjectInput {
@@ -261,6 +272,7 @@ export interface ProjectFinancialSummary {
   total_cost_cents: number;
   commission_cents: number;
   gross_profit_cents: number;
+  net_realized_cents: number;
   profit_rate: number;
   expected_payment_cents: number;
   actual_payment_cents: number;
@@ -390,6 +402,7 @@ export interface DashTaskRow {
   actual_hours: number;
 }
 export interface DashboardSummary {
+  archived_count: number;
   contract_total_inclusive_cents: number;
   revenue_exclusive_cents: number;
   commission_potential_cents: number;

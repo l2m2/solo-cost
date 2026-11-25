@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { call } from "@/lib/ipc";
+import { call, changeProjectStatus } from "@/lib/ipc";
 import type { Project, ProjectInput } from "@/types";
 
 interface S {
@@ -9,7 +9,7 @@ interface S {
   loadFor: (companyId: number, statusFilter?: string | null) => Promise<void>;
   create: (companyId: number, input: ProjectInput) => Promise<Project>;
   update: (id: number, input: ProjectInput) => Promise<Project>;
-  setStatus: (id: number, status: string) => Promise<Project>;
+  setStatus: (id: number, status: string, target?: string, reason?: string) => Promise<Project>;
   softDelete: (id: number) => Promise<void>;
   reset: () => void;
 }
@@ -35,8 +35,8 @@ export const useProjectsStore = create<S>((set, get) => ({
     set({ list: get().list.map((x) => (x.id === id ? p : x)) });
     return p;
   },
-  async setStatus(id, status) {
-    const p = await call<Project>("set_project_status", { id, status });
+  async setStatus(id, status, target, reason) {
+    const p = await changeProjectStatus(id, status, target, reason);
     set({ list: get().list.map((x) => (x.id === id ? p : x)) });
     return p;
   },

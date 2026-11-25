@@ -90,6 +90,7 @@ pub struct DashboardSummary {
     pub commission_realized_cents: i64,
     pub net_realized_cents: i64,
     pub by_year: Vec<YearRow>,
+    pub archived_count: usize,
     pub by_status: Vec<StatusRow>,
     pub receivables: Vec<ReceivableRow>,
     pub receivables_outstanding_cents: i64,
@@ -99,11 +100,12 @@ pub struct DashboardSummary {
     pub todo_task_count: i64,
 }
 
-const STATUS_ORDER: [&str; 6] = [
-    "negotiating", "pending", "in_progress", "delivered", "settled", "archived",
+const STATUS_ORDER: [&str; 7] = [
+    "negotiating", "pending", "in_progress", "delivered", "settled", "cancelled", "unknown",
 ];
 
 struct Proj {
+    is_archived: bool,
     id: i64,
     name: String,
     client_id: Option<i64>,
@@ -127,7 +129,7 @@ pub fn company_dashboard(
     let mut pstmt = conn.prepare(
         "SELECT p.id, p.name, p.client_id, c.name, p.status,
                 p.contract_amount_cents, p.contract_amount_is_tax_inclusive, p.tax_rate,
-                p.commission_mode, p.commission_rate, p.commission_amount_cents, p.commission_settled
+                p.commission_mode, p.commission_rate, p.commission_amount_cents, p.commission_settled, p.is_archived
          FROM projects p
          LEFT JOIN clients c ON c.id = p.client_id
          WHERE p.company_id = ?1 AND p.deleted_at IS NULL
@@ -136,6 +138,7 @@ pub fn company_dashboard(
     let projects: Vec<Proj> = pstmt
         .query_map([company_id], |r| {
             Ok(Proj {
+                is_archived: r.get(12)?,
                 id: r.get(0)?,
                 name: r.get(1)?,
                 client_id: r.get(2)?,
@@ -197,6 +200,7 @@ pub fn company_dashboard(
         commission_realized_cents: 0,
         net_realized_cents: 0,
         by_year: Vec::new(),
+        archived_count: projects.iter().filter(|p| p.is_archived).count(),
         by_status: Vec::new(),
         receivables: Vec::new(),
         receivables_outstanding_cents: 0,

@@ -20,13 +20,13 @@ import {
 } from "@/components/ui/table";
 import { MoneyInput } from "@/components/forms/MoneyInput";
 import { formatCNY } from "@/lib/money";
-import { STATUS_OPTIONS, statusBadgeClass, statusLabel } from "@/lib/status";
+import { statusBadgeClass, statusLabel } from "@/lib/status";
 import { call } from "@/lib/ipc";
 import { useCompanyStore } from "@/stores/company";
 import { useCategoriesStore } from "@/stores/categories";
 import { useCostsStore } from "@/stores/costs";
 import { usePaymentsStore } from "@/stores/payments";
-import { useProjectsStore } from "@/stores/projects";
+import { LifecycleActions, StatusTimeline } from "./lifecycle";
 import { useFinancialStore } from "@/stores/financial";
 import { FormDialogContent, useFormDialog } from "@/components/ui/form-dialog";
 import TasksPanel from "@/routes/projects/tasks/panel";
@@ -40,7 +40,6 @@ export default function ProjectDetailPage() {
   const currentCompanyId = useCompanyStore((s) => s.currentId);
   const { loadedForCompany, loadFor: loadCats } = useCategoriesStore();
   const { loadFor: loadCosts } = useCostsStore();
-  const setProjectStatus = useProjectsStore((s) => s.setStatus);
   const [project, setProject] = useState<Project | null>(null);
 
   // A ?task= deep link targets the tasks tab. Radix unmounts inactive tab
@@ -100,23 +99,9 @@ export default function ProjectDetailPage() {
           <span className={`text-xs px-2 py-0.5 rounded ${statusBadgeClass(project.status)}`}>
             {statusLabel(project.status)}
           </span>
+          {project.is_archived && <span className="text-xs text-muted-foreground">{statusLabel("archived")}</span>}
         </div>
-        <Select
-          value={project.status}
-          onValueChange={async (v) => {
-            try {
-              const p = await setProjectStatus(project.id, v);
-              setProject(p);
-            } catch (e: unknown) { toast.error(t("common.error", { msg: String(e) })); }
-          }}
-        >
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <LifecycleActions key={project.id} project={project} financial={financial} onChange={setProject} />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -128,8 +113,9 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="attachments" disabled>附件（M4）</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-4">
+        <TabsContent value="overview" className="mt-4 space-y-6">
           <FinancialPanel project={project} financial={financial} />
+          <StatusTimeline project={project} />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-4">
@@ -156,128 +142,71 @@ function FinancialPanel({
   financial: ProjectFinancialSummary | null;
 }) {
   const { t } = useTranslation();
-  const formatRate = (r: number) => `${(r * 100).toFixed(2)}%`;
+  const money = (value?: number) => value == null ? "—" : formatCNY(value);
+  const rate = (value?: number) => value == null ? "—" : `${(value * 100).toFixed(2)}%`;
+  const metrics = [
+    { label: t("financial.contractInclusive"), value: money(financial?.revenue_tax_inclusive_cents) },
+    { label: t("financial.actualPayment"), value: money(financial?.actual_payment_cents),
+      detail: `${t("financial.collectionRate")} ${rate(financial?.collection_rate)}` },
+    { label: t("financial.totalCost"), value: money(financial?.total_cost_cents) },
+    { label: t("financial.grossProfit"), value: money(financial?.gross_profit_cents),
+      detail: `${t("financial.profitRate")} ${rate(financial?.profit_rate)}` },
+    { label: t("dashboard.netRealized"), value: money(financial?.net_realized_cents) },
+  ];
+  const revenueRows = [
+    [t("financial.revenueExclusive"), money(financial?.revenue_tax_exclusive_cents)],
+    [`${t("financial.tax")}（${rate(project.tax_rate)}）`, money(financial?.tax_amount_cents)],
+    [t("financial.expectedPayment"), money(financial?.expected_payment_cents)],
+  ];
+  const costRows = [
+    [t("financial.generalCost"), money(financial?.general_cost_cents)],
+    [t("financial.laborCost"), money(financial?.labor_cost_cents)],
+  ];
+  let commissionNote = "";
+  if (project.commission_mode !== "none") {
+    costRows.push([t("financial.commission"), money(financial?.commission_cents)]);
+    commissionNote = project.commission_mode === "rate"
+      ? t("financial.commissionRateFootnote", { rate: rate(project.commission_rate ?? 0) })
+      : t(project.commission_settled ? "financial.commissionFixedSettled" : "financial.commissionFixedUnsettled",
+          { amount: formatCNY(project.commission_amount_cents ?? 0) });
+  }
+  const groups = [
+    { title: t("financial.incomeDetail"), rows: revenueRows,
+      note: t(project.contract_amount_is_tax_inclusive ? "financial.inclusiveContract" : "financial.exclusiveContract") },
+    { title: t("financial.costDetail"), rows: costRows, note: commissionNote },
+  ];
+
   return (
-    <div className="space-y-4">
-      {/* basic project info */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">客户</CardTitle></CardHeader>
-          <CardContent>{project.client_name ?? "—"}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">起止日期</CardTitle></CardHeader>
-          <CardContent>
-            {project.start_date ?? "—"} ~ {project.end_date ?? "—"}
-          </CardContent>
-        </Card>
+    <div className="space-y-5">
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+        <span><span className="mr-2 text-muted-foreground">{t("project.client")}</span>{project.client_name ?? "—"}</span>
+        <span><span className="mr-2 text-muted-foreground">{t("project.dateRange")}</span>
+          {project.start_date || project.end_date ? `${project.start_date ?? "—"} 至 ${project.end_date ?? "—"}` : "—"}
+        </span>
       </div>
-
-      {/* revenue / tax */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.revenueInclusive")}</CardTitle></CardHeader>
-          <CardContent className="text-xl font-semibold">
-            {financial ? formatCNY(financial.revenue_tax_inclusive_cents) : "—"}
-            <div className="text-xs text-muted-foreground mt-1">
-              税率 {(project.tax_rate * 100).toFixed(2)}% · {project.contract_amount_is_tax_inclusive ? "含税合同" : "不含税合同"}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.revenueExclusive")}</CardTitle></CardHeader>
-          <CardContent className="text-xl font-semibold">
-            {financial ? formatCNY(financial.revenue_tax_exclusive_cents) : "—"}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.tax")}</CardTitle></CardHeader>
-          <CardContent className="text-xl font-semibold">
-            {financial ? formatCNY(financial.tax_amount_cents) : "—"}
-          </CardContent>
-        </Card>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-5 border-y bg-muted/30 px-4 py-5 sm:grid-cols-3 lg:grid-cols-5">
+        {metrics.map(({ label, value, detail }) => <div key={label}>
+          <dt className="text-sm text-muted-foreground">{label}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd>
+          {detail && <dd className="mt-1 text-xs text-muted-foreground">{detail}</dd>}
+        </div>)}
+      </dl>
+      <div className="grid gap-5 sm:grid-cols-2 sm:gap-8">
+        {groups.map(({ title, rows, note }) => <section key={title}>
+          <h2 className="mb-2 text-sm font-semibold">{title}</h2>
+          <dl className="divide-y">
+            {rows.map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-1.5 text-sm">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="tabular-nums">{value}</dd>
+            </div>)}
+          </dl>
+          {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
+        </section>)}
       </div>
-
-      {/* costs */}
-      <div
-        className={`grid gap-3 ${project.commission_mode !== "none" ? "grid-cols-4" : "grid-cols-3"}`}
-      >
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.generalCost")}</CardTitle></CardHeader>
-          <CardContent className="text-xl font-semibold">
-            {financial ? formatCNY(financial.general_cost_cents) : "—"}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.laborCost")}</CardTitle></CardHeader>
-          <CardContent className="text-xl font-semibold">
-            {financial ? formatCNY(financial.labor_cost_cents) : "—"}
-          </CardContent>
-        </Card>
-        {project.commission_mode !== "none" && (
-          <Card>
-            <CardHeader><CardTitle className="text-sm">{t("financial.commission")}</CardTitle></CardHeader>
-            <CardContent className="text-xl font-semibold">
-              {financial ? formatCNY(financial.commission_cents) : "—"}
-              <div className="text-xs text-muted-foreground mt-1">
-                {project.commission_mode === "rate" &&
-                  t("financial.commissionRateFootnote", {
-                    rate: `${((project.commission_rate ?? 0) * 100).toFixed(2)}%`,
-                  })}
-                {project.commission_mode === "fixed" &&
-                  (project.commission_settled
-                    ? t("financial.commissionFixedSettled", {
-                        amount: formatCNY(project.commission_amount_cents ?? 0),
-                      })
-                    : t("financial.commissionFixedUnsettled", {
-                        amount: formatCNY(project.commission_amount_cents ?? 0),
-                      }))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.totalCost")}</CardTitle></CardHeader>
-          <CardContent className="text-xl font-semibold">
-            {financial ? formatCNY(financial.total_cost_cents) : "—"}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* profit & collection */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="border-primary">
-          <CardHeader><CardTitle className="text-sm">{t("financial.grossProfit")}</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {financial ? formatCNY(financial.gross_profit_cents) : "—"}
-            </div>
-            <div className="text-sm text-muted-foreground mt-1">
-              {t("financial.profitRate")}：{financial ? formatRate(financial.profit_rate) : "—"}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">{t("financial.collectionRate")}</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {financial ? formatRate(financial.collection_rate) : "—"}
-            </div>
-            <div className="text-sm text-muted-foreground mt-1">
-              {t("financial.actualPayment")}：{financial ? formatCNY(financial.actual_payment_cents) : "—"} /
-              {" "}
-              {t("financial.expectedPayment")}：{financial ? formatCNY(financial.expected_payment_cents) : "—"}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {project.notes && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">备注</CardTitle></CardHeader>
-          <CardContent className="whitespace-pre-wrap text-sm">{project.notes}</CardContent>
-        </Card>
-      )}
+      {project.notes && <section>
+        <h2 className="mb-1 text-sm font-semibold">{t("project.notes")}</h2>
+        <p className="whitespace-pre-wrap break-words text-sm">{project.notes}</p>
+      </section>}
     </div>
   );
 }

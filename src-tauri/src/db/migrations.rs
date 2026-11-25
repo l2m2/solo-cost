@@ -35,6 +35,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0009_task_events",
         include_str!("../../migrations/0009_task_events.sql"),
     ),
+    (
+        "0010_project_lifecycle",
+        include_str!("../../migrations/0010_project_lifecycle.sql"),
+    ),
 ];
 
 pub fn run(conn: &Connection) -> AppResult<()> {

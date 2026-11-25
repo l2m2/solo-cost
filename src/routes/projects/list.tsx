@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +26,13 @@ import { useClientsStore } from "@/stores/clients";
 import type { Client, Project, ProjectInput } from "@/types";
 
 export default function ProjectsListPage() {
+  const navigate = useNavigate();
+  const [filters, setFilters] = useSearchParams();
+  const showAll = filters.get("scope") === "all";
+  const statusFilter = filters.get("status") ?? "__all";
   const { t } = useTranslation();
   const currentId = useCompanyStore((s) => s.currentId);
-  const { list, loadedForCompany, statusFilter, loadFor, create, update, softDelete } =
+  const { list, loadedForCompany, loadFor, create, update, setStatus, softDelete } =
     useProjectsStore();
   const {
     loadedForCompany: clientsLoadedFor,
@@ -52,28 +58,18 @@ export default function ProjectsListPage() {
     return <div className="text-sm text-muted-foreground">请先选择公司</div>;
   }
 
-  // "全部" 语义 = 不含已归档；用户想看已归档需显式选择该选项
-  const visible = statusFilter == null
-    ? list.filter((p) => p.status !== "archived")
-    : list;
+  const visible = list.filter((project) => {
+    if (project.company_id !== currentId) return false;
+    if (!showAll && (project.is_archived || project.status === "cancelled")) return false;
+    if (statusFilter === "archived") return project.is_archived;
+    return statusFilter === "__all" || project.status === statusFilter;
+  });
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{t("project.title")}</h1>
         <div className="flex items-center gap-2">
-          <Select
-            value={statusFilter ?? "__all"}
-            onValueChange={(v) => loadFor(currentId, v === "__all" ? null : v)}
-          >
-            <SelectTrigger className="w-56"><SelectValue placeholder={t("project.filterByStatus")} /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">{t("project.allStatuses")}</SelectItem>
-              {STATUS_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Dialog open={openNew} onOpenChange={setOpenNew}>
             <DialogTrigger asChild><Button>{t("project.create")}</Button></DialogTrigger>
             <FormDialogContent className="max-w-lg">
@@ -92,12 +88,48 @@ export default function ProjectsListPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-md bg-muted p-1" role="group" aria-label={t("project.scope")}>
+          {(["current", "all"] as const).map((scope) => {
+            const selected = (scope === "all") === showAll;
+            return (
+              <Button key={scope} size="sm" variant={selected ? "secondary" : "ghost"}
+                className={selected ? "bg-background shadow-sm hover:bg-background" : "text-muted-foreground"}
+                aria-pressed={selected}
+                onClick={() => setFilters(scope === "all" ? { scope } : {}, { replace: true })}>
+                {t(scope === "all" ? "project.allProjects" : "project.currentProjects")}
+              </Button>
+            );
+          })}
+        </div>
+        <Select value={statusFilter} onValueChange={(value) => {
+          const next = new URLSearchParams(filters);
+          if (value === "__all") next.delete("status");
+          else next.set("status", value);
+          setFilters(next, { replace: true });
+        }}>
+          <SelectTrigger className="w-36" aria-label={t("project.filterByStatus")}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">{t("project.allStatuses")}</SelectItem>
+            {STATUS_OPTIONS.filter((o) => showAll || o.value !== "cancelled").map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+            {showAll && <SelectItem value="archived">{statusLabel("archived")}</SelectItem>}
+          </SelectContent>
+        </Select>
+      </div>
+
       {visible.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("project.empty")}</CardContent></Card>
       ) : (
         <div className="grid gap-3">
           {visible.map((p) => (
-            <Card key={p.id}>
+            <Card key={p.id} onDoubleClick={(event) => {
+              const target = event.target;
+              if (!(target instanceof Element) || !event.currentTarget.contains(target)) return;
+              if (target.closest("a, button")) return;
+              navigate(`/projects/${p.id}`);
+            }}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div className="space-y-1">
                   <CardTitle className="text-base flex items-center gap-2">
@@ -105,6 +137,7 @@ export default function ProjectsListPage() {
                     <span className={`text-xs px-2 py-0.5 rounded ${statusBadgeClass(p.status)}`}>
                       {statusLabel(p.status)}
                     </span>
+                    {p.is_archived && <span className="text-xs text-muted-foreground">{statusLabel("archived")}</span>}
                   </CardTitle>
                   {p.client_name && (
                     <div className="text-xs text-muted-foreground">{t("project.client")}：{p.client_name}</div>
@@ -118,15 +151,30 @@ export default function ProjectsListPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button asChild size="sm" variant="ghost"><Link to={`/projects/${p.id}`}>{t("project.openDetail")}</Link></Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditing(p)}>编辑</Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => { setDeleteTarget(p); setDeleteInput(""); }}
-                    >
-                      {t("project.delete")}
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="size-9"
+                          aria-label={p.name + " · " + t("lifecycle.more")}>
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {!p.is_archived && <>
+                          <DropdownMenuItem onSelect={async () => {
+                            try { await setStatus(p.id, "archive"); }
+                            catch (e) { toast.error(t("common.error", { msg: String(e) })); }
+                          }}>
+                            {t("lifecycle.archive")}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                        </>}
+                        <DropdownMenuItem className="text-destructive focus:text-destructive"
+                          onSelect={() => { setDeleteTarget(p); setDeleteInput(""); }}>
+                          {t("project.delete")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardHeader>
@@ -234,7 +282,7 @@ function ProjectForm({
       await onSubmit({
         name: name.trim(),
         client_id: Number(clientId),
-        status,
+        status: initial ? undefined : status,
         contract_amount_cents: amount,
         contract_amount_is_tax_inclusive: inclusive,
         tax_rate: Number(taxRate),
@@ -284,14 +332,14 @@ function ProjectForm({
         </div>
         <div className="space-y-1">
           <Label>状态</Label>
-          <Select value={status} onValueChange={(v) => { markDirty(); setStatus(v); }}>
+          {initial ? <p className="text-sm">{statusLabel(status)}</p> : <Select value={status} onValueChange={(v) => { markDirty(); setStatus(v); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </SelectContent>
-          </Select>
+          </Select>}
         </div>
       </div>
 

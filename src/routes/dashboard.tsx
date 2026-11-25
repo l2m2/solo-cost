@@ -399,6 +399,7 @@ export default function DashboardPage() {
 
         <TabsContent value="ranking" className="space-y-4">
           <LedgerPanel title={t("dashboard.statusDist")} bodyClassName="space-y-2 p-5">
+            {data.archived_count > 0 && <p className="text-xs text-muted-foreground">{t("lifecycle.archivedCount", { count: data.archived_count })}</p>}
             {data.by_status.length === 0 ? (
               <div className="text-sm" style={{ color: INK_SOFT }}>{t("dashboard.empty")}</div>
             ) : data.by_status.map((s) => (

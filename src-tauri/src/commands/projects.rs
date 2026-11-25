@@ -11,7 +11,7 @@ const ALLOWED_STATUSES: [&str; 6] = [
     "in_progress",
     "delivered",
     "settled",
-    "archived",
+    "cancelled",
 ];
 
 const ALLOWED_COMMISSION_MODES: [&str; 3] = ["none", "rate", "fixed"];
@@ -25,6 +25,8 @@ pub struct Project {
     /// Read-only convenience: populated via LEFT JOIN clients. Not settable on write.
     pub client_name: Option<String>,
     pub status: String,
+    pub is_archived: bool,
+    pub cancelled_from: Option<String>,
     pub contract_amount_cents: i64,
     pub contract_amount_is_tax_inclusive: bool,
     pub tax_rate: f64,
@@ -66,6 +68,8 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         client_id: row.get("client_id")?,
         client_name: row.get("client_name")?,
         status: row.get("status")?,
+        is_archived: row.get("is_archived")?,
+        cancelled_from: row.get("cancelled_from")?,
         contract_amount_cents: row.get("contract_amount_cents")?,
         contract_amount_is_tax_inclusive: row.get::<_, i64>("contract_amount_is_tax_inclusive")?
             != 0,
@@ -111,17 +115,13 @@ fn validate(input: &ProjectInput) -> AppResult<()> {
             "rate" => {
                 let r = input.commission_rate.unwrap_or(0.0);
                 if !(0.0..=1.0).contains(&r) {
-                    return Err(AppError::Validation(
-                        "提成率必须在 [0, 1] 之间".into(),
-                    ));
+                    return Err(AppError::Validation("提成率必须在 [0, 1] 之间".into()));
                 }
             }
             "fixed" => {
                 let a = input.commission_amount_cents.unwrap_or(0);
                 if a < 0 {
-                    return Err(AppError::Validation(
-                        "固定提成金额不能为负".into(),
-                    ));
+                    return Err(AppError::Validation("固定提成金额不能为负".into()));
                 }
             }
             _ => {}
@@ -139,7 +139,7 @@ pub(crate) fn list_impl(
         Some(s) => (
             "SELECT p.*, c.name AS client_name
              FROM projects p LEFT JOIN clients c ON c.id = p.client_id
-             WHERE p.company_id = ?1 AND p.status = ?2 AND p.deleted_at IS NULL
+             WHERE p.company_id = ?1 AND ((?2 = 'archived' AND p.is_archived = 1) OR (p.is_archived = 0 AND p.status = ?2)) AND p.deleted_at IS NULL
              ORDER BY p.id DESC",
             vec![company_id.into(), s.to_string().into()],
         ),
@@ -221,28 +221,32 @@ pub(crate) fn create_impl(
 
 pub(crate) fn update_impl(conn: &Connection, id: i64, input: &ProjectInput) -> AppResult<Project> {
     validate(input)?;
-    let n = conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    if let Some(status) = input.status.as_deref() {
+        if get_impl(&tx, id)?.status != status {
+            change_lifecycle(&tx, id, status, None, None)?;
+        }
+    }
+    let n = tx.execute(
         "UPDATE projects SET
             name = ?1,
             client_id = ?2,
-            status = COALESCE(?3, status),
-            contract_amount_cents = COALESCE(?4, contract_amount_cents),
-            contract_amount_is_tax_inclusive = COALESCE(?5, contract_amount_is_tax_inclusive),
-            tax_rate = COALESCE(?6, tax_rate),
-            start_date = ?7,
-            end_date = ?8,
-            actual_delivered_at = ?9,
-            notes = ?10,
-            commission_mode = COALESCE(?11, commission_mode),
-            commission_rate = ?12,
-            commission_amount_cents = ?13,
-            commission_settled = COALESCE(?14, commission_settled),
+            contract_amount_cents = COALESCE(?3, contract_amount_cents),
+            contract_amount_is_tax_inclusive = COALESCE(?4, contract_amount_is_tax_inclusive),
+            tax_rate = COALESCE(?5, tax_rate),
+            start_date = ?6,
+            end_date = ?7,
+            actual_delivered_at = ?8,
+            notes = ?9,
+            commission_mode = COALESCE(?10, commission_mode),
+            commission_rate = ?11,
+            commission_amount_cents = ?12,
+            commission_settled = COALESCE(?13, commission_settled),
             updated_at = datetime('now')
-         WHERE id = ?15 AND deleted_at IS NULL",
+         WHERE id = ?14 AND deleted_at IS NULL",
         rusqlite::params![
             input.name.trim(),
             input.client_id,
-            input.status.as_deref(),
             input.contract_amount_cents,
             input.contract_amount_is_tax_inclusive.map(|b| b as i64),
             input.tax_rate,
@@ -263,25 +267,108 @@ pub(crate) fn update_impl(conn: &Connection, id: i64, input: &ProjectInput) -> A
             id,
         });
     }
+    let project = get_impl(&tx, id)?;
+    tx.commit()?;
+    Ok(project)
+}
+
+fn change_lifecycle(
+    conn: &Connection,
+    id: i64,
+    action: &str,
+    target: Option<&str>,
+    reason: Option<&str>,
+) -> AppResult<Project> {
+    let project = get_impl(conn, id)?;
+    let current = project.status.as_str();
+    let invalid = || AppError::Validation("当前项目状态不允许此操作".into());
+    let is_archive = action == "archive";
+    let next = match action {
+        "archive" if !project.is_archived => current,
+        "unarchive" if project.is_archived && current == "unknown" => target
+            .filter(|s| ALLOWED_STATUSES.contains(s))
+            .ok_or_else(invalid)?,
+        "unarchive" if project.is_archived => current,
+        _ if project.is_archived => return Err(invalid()),
+        "restore" if current == "cancelled" => project
+            .cancelled_from
+            .as_deref()
+            .or(target.filter(|s| matches!(*s, "negotiating" | "pending" | "in_progress")))
+            .ok_or_else(invalid)?,
+        "pending" if current == "negotiating" => action,
+        "negotiating" if current == "pending" => action,
+        "in_progress" if matches!(current, "negotiating" | "pending" | "delivered") => action,
+        "cancelled" if matches!(current, "negotiating" | "pending" | "in_progress") => action,
+        "delivered" if matches!(current, "in_progress" | "settled") => action,
+        "settled" if current == "delivered" => action,
+        "settled" if current == "in_progress" => {
+            let summary = crate::domain::profit::project_financial_summary(conn, id)?;
+            if summary.revenue_tax_inclusive_cents <= 0
+                || summary.actual_payment_cents < summary.revenue_tax_inclusive_cents
+            {
+                return Err(invalid());
+            }
+            action
+        }
+        _ => return Err(invalid()),
+    };
+    let cancelled_from = match action {
+        "cancelled" => Some(current),
+        "archive" | "unarchive" => project.cancelled_from.as_deref(),
+        _ => None,
+    };
+    conn.execute(
+        "UPDATE projects SET status=?1, is_archived=?2, cancelled_from=?3,
+                  updated_at=datetime('now') WHERE id=?4",
+        rusqlite::params![next, is_archive, cancelled_from, id],
+    )?;
+    conn.execute(
+        "INSERT INTO project_status_events(project_id,action,from_status,to_status,reason)
+                  VALUES (?1,?2,?3,?4,?5)",
+        rusqlite::params![
+            id,
+            action,
+            current,
+            next,
+            reason.map(str::trim).filter(|s| !s.is_empty())
+        ],
+    )?;
     get_impl(conn, id)
 }
 
-pub(crate) fn set_status_impl(conn: &Connection, id: i64, status: &str) -> AppResult<Project> {
-    if !ALLOWED_STATUSES.contains(&status) {
-        return Err(AppError::Validation(format!("非法状态：{status}")));
-    }
-    let n = conn.execute(
-        "UPDATE projects SET status = ?1, updated_at = datetime('now')
-         WHERE id = ?2 AND deleted_at IS NULL",
-        rusqlite::params![status, id],
-    )?;
-    if n == 0 {
-        return Err(AppError::NotFound {
-            entity: "project",
-            id,
-        });
-    }
-    get_impl(conn, id)
+#[derive(Serialize)]
+pub struct StatusEvent {
+    id: i64,
+    action: String,
+    from_status: Option<String>,
+    to_status: String,
+    reason: Option<String>,
+    created_at: String,
+}
+
+#[tauri::command]
+pub fn list_project_status_events(
+    state: tauri::State<AppState>,
+    id: i64,
+) -> AppResult<Vec<StatusEvent>> {
+    with_conn(&state, |conn| {
+        get_impl(conn, id)?;
+        let mut stmt = conn.prepare(
+            "SELECT id, action, from_status, to_status, reason, created_at
+            FROM project_status_events WHERE project_id=?1 ORDER BY id DESC",
+        )?;
+        let rows = stmt.query_map([id], |r| {
+            Ok(StatusEvent {
+                id: r.get(0)?,
+                action: r.get(1)?,
+                from_status: r.get(2)?,
+                to_status: r.get(3)?,
+                reason: r.get(4)?,
+                created_at: r.get(5)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    })
 }
 
 pub(crate) fn delete_impl(conn: &Connection, id: i64) -> AppResult<()> {
@@ -330,8 +417,15 @@ pub fn set_project_status(
     state: tauri::State<AppState>,
     id: i64,
     status: String,
+    target: Option<String>,
+    reason: Option<String>,
 ) -> AppResult<Project> {
-    with_conn(&state, |c| set_status_impl(c, id, &status))
+    with_conn(&state, |conn| {
+        let tx = conn.unchecked_transaction()?;
+        let project = change_lifecycle(&tx, id, &status, target.as_deref(), reason.as_deref())?;
+        tx.commit()?;
+        Ok(project)
+    })
 }
 #[tauri::command]
 pub fn delete_project(state: tauri::State<AppState>, id: i64) -> AppResult<()> {

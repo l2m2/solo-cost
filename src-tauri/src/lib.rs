@@ -66,6 +66,7 @@ pub fn run() {
             commands::projects::create_project,
             commands::projects::update_project,
             commands::projects::set_project_status,
+            commands::projects::list_project_status_events,
             commands::projects::delete_project,
             commands::projects::get_project_financial_summary,
             commands::search::search,
