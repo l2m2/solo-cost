@@ -22,11 +22,13 @@ const TYPE_LABEL: Record<string, string> = {
 export default function TrashPage() {
   const { t } = useTranslation();
   const currentId = useCompanyStore((s) => s.currentId);
-  const { items, loadedForCompany, loadFor, restore, purge } = useTrashStore();
+  const { items, loadFor, restore, purge } = useTrashStore();
 
   useEffect(() => {
-    if (currentId != null && loadedForCompany !== currentId) loadFor(currentId);
-  }, [currentId, loadedForCompany, loadFor]);
+    if (currentId != null) {
+      loadFor(currentId).catch((e: unknown) => toast.error(t("common.error", { msg: String(e) })));
+    }
+  }, [currentId, loadFor, t]);
 
   if (currentId == null) {
     return <div className="text-sm text-muted-foreground">请先选择公司</div>;
@@ -34,7 +36,10 @@ export default function TrashPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">{t("trash.title")}</h1>
+      <div className="space-y-1">
+        <h1 className="text-xl font-semibold">{t("trash.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("trash.retention")}</p>
+      </div>
       {items.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">{t("trash.empty")}</CardContent></Card>
       ) : (

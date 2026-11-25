@@ -79,6 +79,7 @@ pub fn run() {
             commands::trash::list_trash,
             commands::trash::restore_trash_item,
             commands::trash::purge_trash_item,
+            commands::trash::purge_expired_trash,
             commands::members::list_members,
             commands::members::get_member,
             commands::members::create_member,

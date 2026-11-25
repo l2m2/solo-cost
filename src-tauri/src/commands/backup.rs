@@ -1,4 +1,4 @@
-use crate::db::{migrations, pool};
+use crate::db::pool;
 use crate::domain::backup;
 use crate::domain::backup::BackupInfo;
 use crate::error::{AppError, AppResult};
@@ -144,9 +144,7 @@ pub fn restore_from_backup(
     std::fs::copy(&backup, &target).map_err(|e| AppError::Backup(format!("copy: {e}")))?;
 
     // Phase 3: re-open the restored db and put it back into state.
-    let conn = pool::open_encrypted(&target, &password)?;
-    migrations::run(&conn)?;
-    backup::integrity_check(&conn)?;
+    let conn = super::auth::unlock_at(&target, &password)?;
     *state.conn.lock().unwrap() = Some(conn);
     Ok(())
 }

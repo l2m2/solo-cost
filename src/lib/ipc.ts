@@ -6,6 +6,10 @@ export async function call<T>(cmd: string, args?: Record<string, unknown>): Prom
   return invoke<T>(cmd, args);
 }
 
+export function purgeExpiredTrash(): Promise<number> {
+  return call("purge_expired_trash");
+}
+
 export function listProjectStatusEvents(id: number): Promise<ProjectStatusEvent[]> {
   return call("list_project_status_events", { id });
 }

@@ -143,16 +143,50 @@ pub(crate) fn restore_impl(conn: &Connection, entity_type: &str, id: i64) -> App
     }
 }
 
-pub(crate) fn purge_impl(conn: &Connection, entity_type: &str, id: i64) -> AppResult<()> {
-    let table = match entity_type {
-        "project" => "projects",
-        "cost_entry" => "cost_entries",
-        "task" => "tasks",
-        "contract_payment" => "contract_payments",
-        "time_log" => "time_logs",
-        other => return Err(AppError::Validation(format!("未知实体类型：{other}"))),
-    };
+// Parents come first so descendants removed with them are never selected twice.
+const TRASH_TABLES: &[(&str, &str)] = &[
+    ("project", "projects"),
+    ("task", "tasks"),
+    ("cost_entry", "cost_entries"),
+    ("contract_payment", "contract_payments"),
+    ("time_log", "time_logs"),
+];
+
+pub(crate) fn purge_expired(conn: &Connection) -> AppResult<usize> {
     let tx = conn.unchecked_transaction()?;
+    let cutoff: String = tx.query_row("SELECT datetime('now', '-30 days')", [], |r| r.get(0))?;
+    let mut removed = 0;
+    for &(entity_type, table) in TRASH_TABLES {
+        let mut stmt = tx.prepare(&format!("SELECT id FROM {table} WHERE deleted_at <= ?1"))?;
+        let ids = stmt
+            .query_map([&cutoff], |r| r.get::<_, i64>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        for id in ids {
+            purge_item(&tx, entity_type, table, id)?;
+            removed += 1;
+        }
+    }
+    tx.commit()?;
+    Ok(removed)
+}
+
+pub(crate) fn purge_impl(conn: &Connection, entity_type: &str, id: i64) -> AppResult<()> {
+    let &(_, table) = TRASH_TABLES
+        .iter()
+        .find(|(kind, _)| *kind == entity_type)
+        .ok_or_else(|| AppError::Validation(format!("未知实体类型：{entity_type}")))?;
+    let tx = conn.unchecked_transaction()?;
+    purge_item(&tx, entity_type, table, id)?;
+    tx.commit()?;
+    Ok(())
+}
+
+fn purge_item(
+    tx: &rusqlite::Transaction,
+    entity_type: &str,
+    table: &str,
+    id: i64,
+) -> AppResult<()> {
     if entity_type == "project" {
         // physically delete children first to respect FK
         tx.execute(
@@ -166,6 +200,7 @@ pub(crate) fn purge_impl(conn: &Connection, entity_type: &str, id: i64) -> AppRe
             [id],
         )?;
         tx.execute("DELETE FROM tasks WHERE project_id = ?1", [id])?;
+        tx.execute("DELETE FROM modules WHERE project_id = ?1", [id])?;
         tx.execute("DELETE FROM cost_entries WHERE project_id = ?1", [id])?;
         tx.execute("DELETE FROM contract_payments WHERE project_id = ?1", [id])?;
     } else if entity_type == "task" {
@@ -182,7 +217,6 @@ pub(crate) fn purge_impl(conn: &Connection, entity_type: &str, id: i64) -> AppRe
             id,
         });
     }
-    tx.commit()?;
     Ok(())
 }
 
@@ -197,7 +231,10 @@ fn with_conn<R>(
 
 #[tauri::command]
 pub fn list_trash(state: tauri::State<AppState>, company_id: i64) -> AppResult<Vec<TrashItem>> {
-    with_conn(&state, |c| list_impl(c, company_id))
+    with_conn(&state, |c| {
+        purge_expired(c)?;
+        list_impl(c, company_id)
+    })
 }
 #[tauri::command]
 pub fn restore_trash_item(
@@ -205,7 +242,10 @@ pub fn restore_trash_item(
     entity_type: String,
     id: i64,
 ) -> AppResult<()> {
-    with_conn(&state, |c| restore_impl(c, &entity_type, id))
+    with_conn(&state, |c| {
+        purge_expired(c)?;
+        restore_impl(c, &entity_type, id)
+    })
 }
 #[tauri::command]
 pub fn purge_trash_item(
@@ -214,4 +254,9 @@ pub fn purge_trash_item(
     id: i64,
 ) -> AppResult<()> {
     with_conn(&state, |c| purge_impl(c, &entity_type, id))
+}
+
+#[tauri::command]
+pub fn purge_expired_trash(state: tauri::State<AppState>) -> AppResult<usize> {
+    state.with_conn(purge_expired)
 }

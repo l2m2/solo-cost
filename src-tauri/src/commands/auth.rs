@@ -71,5 +71,6 @@ pub(crate) fn unlock_at(path: &std::path::Path, password: &str) -> AppResult<rus
     migrations::run(&conn)?;
     // Verify the database is uncorrupted before returning it to the caller.
     crate::domain::backup::integrity_check(&conn)?;
+    super::trash::purge_expired(&conn)?;
     Ok(conn)
 }

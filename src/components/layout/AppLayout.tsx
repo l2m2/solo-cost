@@ -1,3 +1,8 @@
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import { purgeExpiredTrash } from "@/lib/ipc";
+import { useTrashStore } from "@/stores/trash";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
@@ -8,6 +13,23 @@ import { CommandPalette } from "@/components/search/CommandPalette";
 const WORKSPACE = "#FAF8F3";
 
 export function AppLayout() {
+  const { t } = useTranslation();
+  useEffect(() => {
+    let active = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const removed = await purgeExpiredTrash();
+        if (active && removed > 0) {
+          const { loadedForCompany, loadFor } = useTrashStore.getState();
+          if (loadedForCompany != null) await loadFor(loadedForCompany);
+        }
+      } catch (e) {
+        if (active) toast.error(t("common.error", { msg: String(e) }));
+      }
+    }, 60 * 60 * 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [t]);
+
   return (
     <div className="flex h-screen w-screen">
       <Sidebar />
